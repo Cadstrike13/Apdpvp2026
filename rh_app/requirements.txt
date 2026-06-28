@@ -1,0 +1,8 @@
+django>=5.0
+django-htmx>=1.17
+django-crispy-forms>=2.1
+crispy-tailwind>=1.0
+pillow>=10.0
+python-dotenv>=1.0
+xhtml2pdf>=0.2
+PyJWT>=2.8

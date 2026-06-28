@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connexion — APDPVP RH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <div class="w-full max-w-sm bg-white rounded-2xl shadow-md p-8">
+    <h1 class="text-2xl font-bold text-emerald-600 text-center mb-1">APDPVP RH</h1>
+    <p class="text-center text-gray-500 text-sm mb-6">Connexion à votre espace</p>
+
+    {% if form.errors %}
+    <div class="bg-red-50 text-red-600 text-sm rounded-lg p-3 mb-4">
+      Identifiant ou mot de passe incorrect.
+    </div>
+    {% endif %}
+
+    <form method="post" class="space-y-4">
+      {% csrf_token %}
+      <div>
+        <label class="block text-sm font-medium text-gray-600 mb-1">Identifiant</label>
+        <input type="text" name="username" autofocus required
+               class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-600 mb-1">Mot de passe</label>
+        <input type="password" name="password" required
+               class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500">
+      </div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit"
+              class="w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 font-medium">
+        Se connecter
+      </button>
+    </form>
+  </div>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<div class="flex justify-between items-center mb-6">
+  <h2 class="text-2xl font-bold">Documents</h2>
+  <a href="{% url 'documents:create' %}"
+     hx-get="{% url 'documents:create' %}" hx-target="#main-content" hx-push-url="true"
+     class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700">+ Nouveau document</a>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+      <tr>
+        <th class="px-4 py-3 text-left">Nom</th>
+        <th class="px-4 py-3 text-left">Categorie</th>
+        <th class="px-4 py-3 text-left">Taille</th>
+        <th class="px-4 py-3 text-left">Ajoute le</th>
+        <th class="px-4 py-3 text-left">Actions</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for doc in documents %}
+      <tr id="doc-row-{{ doc.pk }}" class="hover:bg-gray-50">
+        <td class="px-4 py-3 font-medium">{{ doc.nom }}</td>
+        <td class="px-4 py-3">{{ doc.get_categorie_display }}</td>
+        <td class="px-4 py-3 text-gray-500">{{ doc.taille }}</td>
+        <td class="px-4 py-3 text-gray-500">{{ doc.date_upload|date:"d/m/Y" }}</td>
+        <td class="px-4 py-3 flex gap-3">
+          {% if doc.fichier %}<a href="{{ doc.fichier.url }}" class="text-blue-500 hover:underline">Telecharger</a>{% endif %}
+          <a href="{% url 'documents:update' doc.pk %}"
+             hx-get="{% url 'documents:update' doc.pk %}" hx-target="#main-content" hx-push-url="true"
+             class="text-amber-500 hover:underline">Modifier</a>
+          <button hx-delete="{% url 'documents:delete' doc.pk %}"
+                  hx-target="#doc-row-{{ doc.pk }}" hx-swap="outerHTML"
+                  hx-confirm="Supprimer ce document ?"
+                  class="text-red-500 hover:underline">Supprimer</button>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="text-center py-8 text-gray-400">Aucun document.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

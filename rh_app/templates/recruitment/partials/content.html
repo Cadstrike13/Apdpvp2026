@@ -1,0 +1,68 @@
+<h2 class="text-2xl font-bold mb-6">Recrutement</h2>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <!-- Offres -->
+  <div class="bg-white rounded-xl shadow-sm p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="font-semibold">Offres d emploi</h3>
+      <a href="{% url 'recruitment:job_create' %}"
+         hx-get="{% url 'recruitment:job_create' %}" hx-target="#main-content" hx-push-url="true"
+         class="text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700">+ Offre</a>
+    </div>
+    <ul class="divide-y divide-gray-100">
+      {% for offre in offres %}
+      <li id="job-row-{{ offre.pk }}" class="py-3">
+        <div class="flex justify-between items-start">
+          <div>
+            <span class="font-medium">{{ offre.titre }}</span>
+            <p class="text-sm text-gray-500">{{ offre.lieu }} — {{ offre.departement|default:"" }}</p>
+          </div>
+          <span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">{{ offre.get_statut_display }}</span>
+        </div>
+        <div class="flex gap-3 mt-2 text-xs">
+          <a href="{% url 'recruitment:job_update' offre.pk %}"
+             hx-get="{% url 'recruitment:job_update' offre.pk %}" hx-target="#main-content" hx-push-url="true"
+             class="text-amber-500 hover:underline">Modifier</a>
+          <button hx-delete="{% url 'recruitment:job_delete' offre.pk %}"
+                  hx-target="#job-row-{{ offre.pk }}" hx-swap="outerHTML"
+                  hx-confirm="Supprimer cette offre ?"
+                  class="text-red-500 hover:underline">Supprimer</button>
+        </div>
+      </li>
+      {% empty %}
+      <li class="py-3 text-gray-400 text-sm">Aucune offre.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <!-- Candidats -->
+  <div class="bg-white rounded-xl shadow-sm p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="font-semibold">Candidats</h3>
+      <a href="{% url 'recruitment:candidate_create' %}"
+         hx-get="{% url 'recruitment:candidate_create' %}" hx-target="#main-content" hx-push-url="true"
+         class="text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700">+ Candidat</a>
+    </div>
+    <ul class="divide-y divide-gray-100">
+      {% for c in candidats %}
+      <li id="candidate-row-{{ c.pk }}" class="py-3">
+        <div class="flex justify-between items-start">
+          <span class="text-sm">{{ c.nom }} <span class="text-gray-400">— {{ c.offre.titre }}</span></span>
+          <span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">{{ c.get_statut_display }}</span>
+        </div>
+        <div class="flex gap-3 mt-2 text-xs">
+          <a href="{% url 'recruitment:candidate_update' c.pk %}"
+             hx-get="{% url 'recruitment:candidate_update' c.pk %}" hx-target="#main-content" hx-push-url="true"
+             class="text-amber-500 hover:underline">Modifier</a>
+          <button hx-delete="{% url 'recruitment:candidate_delete' c.pk %}"
+                  hx-target="#candidate-row-{{ c.pk }}" hx-swap="outerHTML"
+                  hx-confirm="Supprimer ce candidat ?"
+                  class="text-red-500 hover:underline">Supprimer</button>
+        </div>
+      </li>
+      {% empty %}
+      <li class="py-3 text-gray-400 text-sm">Aucun candidat.</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>

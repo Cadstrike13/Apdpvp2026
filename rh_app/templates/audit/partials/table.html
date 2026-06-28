@@ -1,0 +1,45 @@
+<table class="w-full text-sm">
+  <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+    <tr>
+      <th class="px-4 py-3 text-left">Date</th>
+      <th class="px-4 py-3 text-left">Utilisateur</th>
+      <th class="px-4 py-3 text-left">Action</th>
+      <th class="px-4 py-3 text-left">Objet</th>
+      <th class="px-4 py-3 text-left">Détails</th>
+      <th class="px-4 py-3 text-left">IP</th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-gray-100">
+    {% for log in logs %}
+    <tr class="hover:bg-gray-50 align-top">
+      <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ log.timestamp|date:"d/m/Y H:i" }}</td>
+      <td class="px-4 py-3">{{ log.username|default:"système" }}</td>
+      <td class="px-4 py-3">
+        <span class="px-2 py-1 rounded-full text-xs
+          {% if log.action == 'create' %}bg-green-100 text-green-700
+          {% elif log.action == 'update' or log.action == 'restore' %}bg-blue-100 text-blue-700
+          {% elif log.action == 'delete' %}bg-red-100 text-red-700
+          {% elif log.action == 'login' %}bg-emerald-100 text-emerald-700
+          {% elif log.action == 'login_failed' %}bg-orange-100 text-orange-700
+          {% else %}bg-gray-100 text-gray-600{% endif %}">
+          {{ log.get_action_display }}
+        </span>
+      </td>
+      <td class="px-4 py-3">
+        <span class="text-gray-700">{{ log.object_repr|default:"—" }}</span>
+        <span class="block text-xs text-gray-400">{{ log.model }}{% if log.object_id %} #{{ log.object_id }}{% endif %}</span>
+      </td>
+      <td class="px-4 py-3 text-xs text-gray-500">
+        {% if log.changes %}
+          {% for champ, vals in log.changes.items %}
+          <div><span class="text-gray-400">{{ champ }}:</span> {{ vals.0|default:"∅" }} → {{ vals.1|default:"∅" }}</div>
+          {% endfor %}
+        {% else %}—{% endif %}
+      </td>
+      <td class="px-4 py-3 text-gray-400">{{ log.ip_address|default:"—" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="text-center py-8 text-gray-400">Aucune entrée.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

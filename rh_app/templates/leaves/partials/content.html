@@ -1,0 +1,43 @@
+<div class="flex justify-between items-center mb-6">
+  <h2 class="text-2xl font-bold">Demandes de conge</h2>
+  <a href="{% url 'leaves:create' %}"
+     hx-get="{% url 'leaves:create' %}" hx-target="#main-content" hx-push-url="true"
+     class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700">+ Nouvelle demande</a>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+      <tr>
+        <th class="px-4 py-3 text-left">Employe</th>
+        <th class="px-4 py-3 text-left">Type</th>
+        <th class="px-4 py-3 text-left">Periode</th>
+        <th class="px-4 py-3 text-left">Jours</th>
+        <th class="px-4 py-3 text-left">Statut</th>
+        <th class="px-4 py-3 text-left">Actions</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for leave in leaves %}
+      <tr id="leave-row-{{ leave.pk }}" class="hover:bg-gray-50">
+        <td class="px-4 py-3 font-medium">{{ leave.employe }}</td>
+        <td class="px-4 py-3">{{ leave.get_type_conge_display }}</td>
+        <td class="px-4 py-3 text-gray-500">{{ leave.date_debut }} &rarr; {{ leave.date_fin }}</td>
+        <td class="px-4 py-3">{{ leave.nb_jours }}</td>
+        <td class="px-4 py-3">{% include "leaves/partials/status_badge.html" %}</td>
+        <td class="px-4 py-3 flex gap-3">
+          <a href="{% url 'leaves:update' leave.pk %}"
+             hx-get="{% url 'leaves:update' leave.pk %}" hx-target="#main-content" hx-push-url="true"
+             class="text-amber-500 hover:underline">Modifier</a>
+          <button hx-delete="{% url 'leaves:delete' leave.pk %}"
+                  hx-target="#leave-row-{{ leave.pk }}" hx-swap="outerHTML"
+                  hx-confirm="Supprimer cette demande ?"
+                  class="text-red-500 hover:underline">Supprimer</button>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="text-center py-8 text-gray-400">Aucune demande.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

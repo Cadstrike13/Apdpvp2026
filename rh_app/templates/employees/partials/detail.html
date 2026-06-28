@@ -1,0 +1,107 @@
+<div class="max-w-4xl">
+  <div class="flex justify-between items-center">
+    <a href="{% url 'employees:list' %}" hx-get="{% url 'employees:list' %}" hx-target="#main-content" hx-push-url="true"
+       class="text-sm text-gray-500 hover:underline">&larr; Retour a la liste</a>
+    <a href="{% url 'employees:update' employee.pk %}" hx-get="{% url 'employees:update' employee.pk %}"
+       hx-target="#main-content" hx-push-url="true"
+       class="text-sm text-amber-500 hover:underline">Modifier</a>
+  </div>
+
+  <!-- En-tete -->
+  <div class="bg-white rounded-xl shadow-sm p-6 mt-4">
+    <div class="flex items-center gap-4 mb-6">
+      <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center overflow-hidden">
+        {% if employee.photo %}<img src="{{ employee.photo.url }}" class="w-full h-full object-cover">
+        {% else %}<i data-lucide="user" class="w-8 h-8"></i>{% endif %}
+      </div>
+      <div>
+        <h2 class="text-2xl font-bold">{{ employee.prenom }} {{ employee.nom }}</h2>
+        <p class="text-gray-500">
+          {{ employee.poste_principal|default:employee.poste|default:"—" }}
+          {% if employee.categorie %}· {{ employee.categorie }}{% endif %}
+        </p>
+      </div>
+      {% if employee.statut_agent %}
+      <span class="ml-auto px-3 py-1 rounded-full text-xs bg-emerald-50 text-emerald-700">{{ employee.statut_agent }}</span>
+      {% endif %}
+    </div>
+
+    <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+      <div><dt class="text-gray-400">Email</dt><dd>{{ employee.email }}</dd></div>
+      <div><dt class="text-gray-400">Date de naissance</dt><dd>{{ employee.date_naissance|default:"—" }}{% if employee.age %} ({{ employee.age }} ans){% endif %}</dd></div>
+      <div><dt class="text-gray-400">Situation matrimoniale</dt><dd>{{ employee.get_statut_matrimonial_display }} · {{ employee.nombre_enfants }} enfant(s)</dd></div>
+      <div><dt class="text-gray-400">Telephone 1</dt><dd>{{ employee.telephone1|default:"—" }}</dd></div>
+      <div><dt class="text-gray-400">Telephone 2</dt><dd>{{ employee.telephone2|default:"—" }}</dd></div>
+      <div><dt class="text-gray-400">Urgence</dt><dd>{{ employee.telephone_urgence|default:"—" }}</dd></div>
+      <div><dt class="text-gray-400">Departement</dt><dd>{{ employee.departement|default:"—" }}</dd></div>
+      <div><dt class="text-gray-400">Date d embauche</dt><dd>{{ employee.date_embauche }}{% if employee.anciennete is not None %} ({{ employee.anciennete }} ans){% endif %}</dd></div>
+      <div><dt class="text-gray-400">Salaire</dt><dd>{{ employee.salaire|default:"—" }}</dd></div>
+      <div><dt class="text-gray-400">Matricule APDPVP</dt><dd>{{ employee.matricule_apdpvp|default:"—" }}</dd></div>
+      <div><dt class="text-gray-400">Matricule CNSS</dt><dd>{{ employee.matricule_cnss|default:"—" }}</dd></div>
+      <div><dt class="text-gray-400">Matricule CNAMGS</dt><dd>{{ employee.matricule_cnamgs|default:"—" }}</dd></div>
+    </dl>
+
+    <div class="flex gap-4 mt-4 text-sm">
+      {% if employee.cv %}<a href="{{ employee.cv.url }}" target="_blank" class="text-blue-500 hover:underline">CV</a>{% endif %}
+      {% if employee.lettre_motivation %}<a href="{{ employee.lettre_motivation.url }}" target="_blank" class="text-blue-500 hover:underline">Lettre de motivation</a>{% endif %}
+      {% if employee.user %}<span class="text-gray-400">Compte : {{ employee.user.username }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+    <!-- Contrats -->
+    <div class="bg-white rounded-xl shadow-sm p-6">
+      <h3 class="font-semibold mb-3">Contrats</h3>
+      <ul class="divide-y divide-gray-100 text-sm">
+        {% for c in employee.contrats.all %}
+        <li class="py-2 flex justify-between">
+          <span>{{ c.type_contrat|default:"—" }} <span class="text-gray-400">{{ c.reference }}</span></span>
+          <span class="text-gray-400">{{ c.date_debut|date:"d/m/Y" }} → {{ c.date_fin|date:"d/m/Y"|default:"en cours" }}</span>
+        </li>
+        {% empty %}<li class="py-2 text-gray-400">Aucun contrat.</li>{% endfor %}
+      </ul>
+    </div>
+
+    <!-- Affectations / postes -->
+    <div class="bg-white rounded-xl shadow-sm p-6">
+      <h3 class="font-semibold mb-3">Affectations</h3>
+      <ul class="divide-y divide-gray-100 text-sm">
+        {% for a in employee.affectations.all %}
+        <li class="py-2 flex justify-between">
+          <span>{{ a.poste }}{% if a.principal %} <span class="text-emerald-600 text-xs">(principal)</span>{% endif %}</span>
+          <span class="text-gray-400">{{ a.date_debut|date:"d/m/Y" }} → {{ a.date_fin|date:"d/m/Y"|default:"…" }}</span>
+        </li>
+        {% empty %}<li class="py-2 text-gray-400">Aucune affectation.</li>{% endfor %}
+      </ul>
+    </div>
+
+    <!-- Diplomes -->
+    <div class="bg-white rounded-xl shadow-sm p-6">
+      <h3 class="font-semibold mb-3">Diplomes</h3>
+      <ul class="divide-y divide-gray-100 text-sm">
+        {% for d in employee.diplomes.all %}
+        <li class="py-2 flex justify-between">
+          <span>{{ d.intitule }} <span class="text-gray-400">{{ d.etablissement }}</span></span>
+          <span class="text-gray-400">
+            {{ d.annee|default:"" }}
+            {% if d.fichier %}<a href="{{ d.fichier.url }}" target="_blank" class="text-blue-500 hover:underline ml-2">PDF</a>{% endif %}
+          </span>
+        </li>
+        {% empty %}<li class="py-2 text-gray-400">Aucun diplome.</li>{% endfor %}
+      </ul>
+    </div>
+
+    <!-- Evaluations -->
+    <div class="bg-white rounded-xl shadow-sm p-6">
+      <h3 class="font-semibold mb-3">Evaluations</h3>
+      <ul class="divide-y divide-gray-100 text-sm">
+        {% for e in employee.evaluations.all %}
+        <li class="py-2 flex justify-between">
+          <span>{{ e.date_evaluation|date:"d/m/Y" }} <span class="text-gray-400">{{ e.appreciation|truncatechars:40 }}</span></span>
+          <span class="font-medium">{{ e.note }}/20</span>
+        </li>
+        {% empty %}<li class="py-2 text-gray-400">Aucune evaluation.</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>

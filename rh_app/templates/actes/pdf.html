@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 2.5cm 2cm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 11pt; color: #1f2937; }
+  .entete { border-bottom: 2px solid #059669; padding-bottom: 8px; margin-bottom: 18px; }
+  .org { font-size: 14pt; font-weight: bold; color: #059669; }
+  .sous { font-size: 9pt; color: #6b7280; }
+  .ref { text-align: right; font-size: 9pt; color: #6b7280; }
+  h1 { font-size: 15pt; text-align: center; text-transform: uppercase; margin: 22px 0; }
+  table.meta { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+  table.meta td { padding: 4px 6px; font-size: 10pt; vertical-align: top; }
+  table.meta td.k { color: #6b7280; width: 28%; }
+  .contenu { margin: 18px 0; line-height: 1.5; text-align: justify; }
+  .badge { font-size: 9pt; padding: 2px 8px; border-radius: 8px; background: #ecfdf5; color: #047857; }
+  .signatures { margin-top: 48px; width: 100%; }
+  .signatures td { width: 50%; font-size: 10pt; padding-top: 36px; }
+  .pied { position: fixed; bottom: -1.5cm; left: 0; right: 0; text-align: center; font-size: 8pt; color: #9ca3af; }
+</style>
+</head>
+<body>
+  <div class="entete">
+    <table style="width:100%"><tr>
+      <td>
+        <div class="org">APDPVP</div>
+        <div class="sous">Direction des Ressources Humaines — République Gabonaise</div>
+      </td>
+      <td class="ref">
+        Référence : <strong>{{ acte.reference|default:"—" }}</strong><br>
+        Date : {{ acte.date_acte|date:"d/m/Y" }}<br>
+        Statut : <span class="badge">{{ acte.get_statut_display }}</span>
+      </td>
+    </tr></table>
+  </div>
+
+  <h1>{{ acte.get_type_acte_display }}</h1>
+
+  <table class="meta">
+    <tr><td class="k">Objet</td><td><strong>{{ acte.objet }}</strong></td></tr>
+    <tr><td class="k">Agent concerné</td><td>{{ acte.employe.prenom }} {{ acte.employe.nom }} — {{ acte.employe.poste }}</td></tr>
+    <tr><td class="k">Département</td><td>{{ acte.employe.departement|default:"—" }}</td></tr>
+    {% if acte.date_debut %}<tr><td class="k">Période</td><td>du {{ acte.date_debut|date:"d/m/Y" }} au {{ acte.date_fin|date:"d/m/Y" }}</td></tr>{% endif %}
+  </table>
+
+  {% if acte.contenu %}
+  <div class="contenu">{{ acte.contenu|linebreaksbr }}</div>
+  {% endif %}
+
+  <table class="signatures">
+    <tr>
+      <td>L'agent concerné<br>(lu et approuvé)</td>
+      <td>Pour la Direction RH<br>{% if acte.redige_par %}{{ acte.redige_par.prenom }} {{ acte.redige_par.nom }}{% endif %}</td>
+    </tr>
+  </table>
+
+  <div class="pied">Document généré par APDPVP RH — à imprimer, signer puis re-scanner comme pièce jointe.</div>
+</body>
+</html>

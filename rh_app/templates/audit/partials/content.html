@@ -1,0 +1,22 @@
+<h2 class="text-2xl font-bold mb-6">Journal d'audit</h2>
+
+<div class="flex flex-col md:flex-row gap-3 mb-4">
+  <input type="search" name="q" placeholder="Rechercher (objet, utilisateur)..." value="{{ query }}"
+         hx-get="{% url 'roles:audit' %}" hx-trigger="input changed delay:300ms"
+         hx-target="#audit-table" hx-swap="innerHTML" hx-include="[name='action']"
+         class="flex-1 px-4 py-2 border rounded-lg">
+  <select name="action"
+          hx-get="{% url 'roles:audit' %}" hx-trigger="change"
+          hx-target="#audit-table" hx-swap="innerHTML" hx-include="[name='q']"
+          class="px-4 py-2 border rounded-lg bg-white">
+    <option value="">Toutes les actions</option>
+    {% for code, label in actions %}
+    <option value="{{ code }}" {% if code == action_selected %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+<div id="audit-table" class="bg-white rounded-xl shadow-sm overflow-hidden">
+  {% include "audit/partials/table.html" %}
+</div>
+<p class="text-xs text-gray-400 mt-2">200 dernières entrées affichées.</p>

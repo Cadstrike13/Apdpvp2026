@@ -1,0 +1,19 @@
+<div id="leave-status-{{ leave.pk }}" class="flex items-center gap-2">
+  <span class="px-2 py-1 rounded-full text-xs
+    {% if leave.statut == 'approuve' %}bg-green-100 text-green-700
+    {% elif leave.statut == 'refuse' %}bg-red-100 text-red-700
+    {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+    {{ leave.get_statut_display }}
+  </span>
+
+  {% if leave.statut == 'en_attente' %}
+  <button hx-post="{% url 'leaves:approve' leave.pk %}"
+          hx-target="#leave-status-{{ leave.pk }}"
+          hx-swap="outerHTML"
+          class="text-green-600 text-xs hover:underline">Approuver</button>
+  <button hx-post="{% url 'leaves:reject' leave.pk %}"
+          hx-target="#leave-status-{{ leave.pk }}"
+          hx-swap="outerHTML"
+          class="text-red-600 text-xs hover:underline">Refuser</button>
+  {% endif %}
+</div>

@@ -1,0 +1,35 @@
+<h2 class="text-2xl font-bold mb-6">Gestion des roles</h2>
+
+<div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+  <h3 class="font-semibold mb-4">Affecter un role a un utilisateur</h3>
+  <form hx-post="{% url 'roles:assign' %}"
+        hx-target="#roles-table"
+        hx-swap="outerHTML"
+        class="app-form flex flex-col md:flex-row gap-3 md:items-end">
+    {% csrf_token %}
+    <div class="flex-1">
+      <label class="block text-sm font-medium text-gray-600 mb-1">Utilisateur</label>
+      <select name="user" required>
+        <option value="">— choisir —</option>
+        {% for u in users %}
+        <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} ({{ u.username }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="flex-1">
+      <label class="block text-sm font-medium text-gray-600 mb-1">Role</label>
+      <select name="role" required>
+        <option value="">— choisir —</option>
+        {% for code, label in role_choices %}
+        <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700">Affecter</button>
+  </form>
+  {% if not users %}
+  <p class="text-amber-600 text-sm mt-3">Aucun utilisateur. Cree des comptes via l'admin ou la commande <code>seed_users</code>.</p>
+  {% endif %}
+</div>
+
+{% include "roles/partials/table.html" %}

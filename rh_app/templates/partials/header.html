@@ -1,0 +1,19 @@
+<header class="h-16 bg-white shadow-sm flex items-center justify-between px-6">
+  <div class="flex items-center gap-2 text-gray-500">
+    <i data-lucide="building-2" class="w-5 h-5"></i>
+    <span class="text-sm">Gestion des Ressources Humaines</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <span class="text-sm text-gray-600">{{ user.get_full_name|default:user.username }}</span>
+    <div class="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+      <i data-lucide="user" class="w-5 h-5"></i>
+    </div>
+    <form method="post" action="{% url 'logout' %}" class="inline">
+      {% csrf_token %}
+      <button type="submit" title="Se déconnecter"
+              class="text-gray-400 hover:text-red-600 flex items-center">
+        <i data-lucide="log-out" class="w-5 h-5"></i>
+      </button>
+    </form>
+  </div>
+</header>

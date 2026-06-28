@@ -1,0 +1,30 @@
+<div class="flex justify-between items-center mb-6">
+  <h2 class="text-2xl font-bold">Actes administratifs</h2>
+  <a href="{% url 'actes:create' %}"
+     hx-get="{% url 'actes:create' %}" hx-target="#main-content" hx-push-url="true"
+     class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700">+ Nouvel acte</a>
+</div>
+
+<div class="flex flex-col md:flex-row gap-3 mb-4">
+  <input type="search" name="q" placeholder="Rechercher (objet, reference)..." value="{{ query }}"
+         hx-get="{% url 'actes:list' %}" hx-trigger="input changed delay:300ms"
+         hx-target="#actes-table" hx-swap="innerHTML" hx-include="[name='type']"
+         class="flex-1 px-4 py-2 border rounded-lg">
+  <select name="type"
+          hx-get="{% url 'actes:list' %}" hx-trigger="change"
+          hx-target="#actes-table" hx-swap="innerHTML" hx-include="[name='q']"
+          class="px-4 py-2 border rounded-lg bg-white">
+    <option value="">Tous les types</option>
+    {% for groupe, items in type_actes %}
+    <optgroup label="{{ groupe }}">
+      {% for code, label in items %}
+      <option value="{{ code }}" {% if code == type_selected %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </optgroup>
+    {% endfor %}
+  </select>
+</div>
+
+<div id="actes-table" class="bg-white rounded-xl shadow-sm overflow-hidden">
+  {% include "actes/partials/table.html" %}
+</div>

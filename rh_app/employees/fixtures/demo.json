@@ -1,0 +1,144 @@
+[
+  { "model": "employees.department", "pk": 1, "fields": { "nom": "Ressources Humaines" } },
+  { "model": "employees.department", "pk": 2, "fields": { "nom": "Informatique" } },
+  { "model": "employees.department", "pk": 3, "fields": { "nom": "Finances" } },
+  { "model": "employees.department", "pk": 4, "fields": { "nom": "Logistique" } },
+
+  { "model": "employees.employee", "pk": 1, "fields": {
+      "nom": "Obame", "prenom": "Jean", "email": "jean.obame@apdpvp.ga",
+      "date_naissance": "1980-07-05",
+      "departement": 1, "poste": "Responsable RH", "date_embauche": "2021-03-15",
+      "salaire": "1250000.00", "statut": "actif", "photo": "" } },
+  { "model": "employees.employee", "pk": 2, "fields": {
+      "nom": "Mba", "prenom": "Sandrine", "email": "sandrine.mba@apdpvp.ga",
+      "date_naissance": "1990-07-15",
+      "departement": 1, "poste": "Chargée de recrutement", "date_embauche": "2022-09-01",
+      "salaire": "850000.00", "statut": "actif", "photo": "" } },
+  { "model": "employees.employee", "pk": 3, "fields": {
+      "nom": "Ndong", "prenom": "Patrick", "email": "patrick.ndong@apdpvp.ga",
+      "date_naissance": "1992-06-30",
+      "departement": 2, "poste": "Développeur back-end", "date_embauche": "2023-01-10",
+      "salaire": "950000.00", "statut": "actif", "photo": "" } },
+  { "model": "employees.employee", "pk": 4, "fields": {
+      "nom": "Bivigou", "prenom": "Aline", "email": "aline.bivigou@apdpvp.ga",
+      "date_naissance": "1985-12-10",
+      "departement": 2, "poste": "Administratrice systèmes", "date_embauche": "2020-07-12",
+      "salaire": "1100000.00", "statut": "actif", "photo": "" } },
+  { "model": "employees.employee", "pk": 5, "fields": {
+      "nom": "Koumba", "prenom": "Eric", "email": "eric.koumba@apdpvp.ga",
+      "date_naissance": "1979-03-22",
+      "departement": 3, "poste": "Comptable", "date_embauche": "2019-11-05",
+      "salaire": "900000.00", "statut": "actif", "photo": "" } },
+  { "model": "employees.employee", "pk": 6, "fields": {
+      "nom": "Nzue", "prenom": "Carine", "email": "carine.nzue@apdpvp.ga",
+      "date_naissance": "1993-07-02",
+      "departement": 3, "poste": "Contrôleuse de gestion", "date_embauche": "2024-02-19",
+      "salaire": "980000.00", "statut": "actif", "photo": "" } },
+  { "model": "employees.employee", "pk": 7, "fields": {
+      "nom": "Moussavou", "prenom": "Léa", "email": "lea.moussavou@apdpvp.ga",
+      "date_naissance": "1995-11-08",
+      "departement": 4, "poste": "Gestionnaire logistique", "date_embauche": "2022-07-20",
+      "salaire": "780000.00", "statut": "actif", "photo": "" } },
+  { "model": "employees.employee", "pk": 8, "fields": {
+      "nom": "Ondo", "prenom": "Hervé", "email": "herve.ondo@apdpvp.ga",
+      "date_naissance": "1975-01-30",
+      "departement": 4, "poste": "Magasinier", "date_embauche": "2018-08-30",
+      "salaire": "650000.00", "statut": "inactif", "photo": "" } },
+
+  { "model": "recruitment.jobposting", "pk": 1, "fields": {
+      "titre": "Développeur full-stack", "departement": 2, "lieu": "Libreville",
+      "date_publication": "2026-05-10", "date_limite": "2026-07-15",
+      "statut": "ouvert", "description": "Renforcement de l'équipe IT pour les applications APDPVP." } },
+  { "model": "recruitment.jobposting", "pk": 2, "fields": {
+      "titre": "Assistant(e) RH", "departement": 1, "lieu": "Libreville",
+      "date_publication": "2026-06-01", "date_limite": "2026-07-30",
+      "statut": "ouvert", "description": "Appui administratif au service des ressources humaines." } },
+  { "model": "recruitment.jobposting", "pk": 3, "fields": {
+      "titre": "Chauffeur-livreur", "departement": 4, "lieu": "Port-Gentil",
+      "date_publication": "2026-04-20", "date_limite": "2026-05-31",
+      "statut": "pourvu", "description": "Transport et livraison de matériel." } },
+
+  { "model": "recruitment.candidate", "pk": 1, "fields": {
+      "offre": 1, "nom": "Marc Allogho", "email": "marc.allogho@mail.ga",
+      "date_candidature": "2026-05-18", "statut": "entretien", "note": 4, "cv": "" } },
+  { "model": "recruitment.candidate", "pk": 2, "fields": {
+      "offre": 1, "nom": "Sylvie Ekomy", "email": "sylvie.ekomy@mail.ga",
+      "date_candidature": "2026-05-22", "statut": "examen", "note": 3, "cv": "" } },
+  { "model": "recruitment.candidate", "pk": 3, "fields": {
+      "offre": 1, "nom": "David Nguema", "email": "david.nguema@mail.ga",
+      "date_candidature": "2026-06-02", "statut": "offre", "note": 5, "cv": "" } },
+  { "model": "recruitment.candidate", "pk": 4, "fields": {
+      "offre": 2, "nom": "Fatima Mintsa", "email": "fatima.mintsa@mail.ga",
+      "date_candidature": "2026-06-05", "statut": "examen", "note": 4, "cv": "" } },
+  { "model": "recruitment.candidate", "pk": 5, "fields": {
+      "offre": 3, "nom": "Joseph Bekale", "email": "joseph.bekale@mail.ga",
+      "date_candidature": "2026-04-25", "statut": "refuse", "note": 2, "cv": "" } },
+
+  { "model": "leaves.leaverequest", "pk": 1, "fields": {
+      "employe": 3, "type_conge": "conge", "date_debut": "2026-07-06", "date_fin": "2026-07-17",
+      "motif": "Congés annuels", "statut": "en_attente", "date_demande": "2026-06-20T09:15:00Z" } },
+  { "model": "leaves.leaverequest", "pk": 2, "fields": {
+      "employe": 5, "type_conge": "maladie", "date_debut": "2026-06-23", "date_fin": "2026-06-25",
+      "motif": "Certificat médical fourni", "statut": "approuve", "date_demande": "2026-06-22T08:00:00Z" } },
+  { "model": "leaves.leaverequest", "pk": 3, "fields": {
+      "employe": 7, "type_conge": "maternite", "date_debut": "2026-08-01", "date_fin": "2026-11-01",
+      "motif": "Congé maternité", "statut": "approuve", "date_demande": "2026-06-10T14:30:00Z" } },
+  { "model": "leaves.leaverequest", "pk": 4, "fields": {
+      "employe": 4, "type_conge": "conge", "date_debut": "2026-07-20", "date_fin": "2026-07-31",
+      "motif": "", "statut": "en_attente", "date_demande": "2026-06-26T11:45:00Z" } },
+  { "model": "leaves.leaverequest", "pk": 5, "fields": {
+      "employe": 6, "type_conge": "autre", "date_debut": "2026-06-15", "date_fin": "2026-06-16",
+      "motif": "Événement familial", "statut": "refuse", "date_demande": "2026-06-12T16:20:00Z" } },
+
+  { "model": "training.trainingprogram", "pk": 1, "fields": {
+      "titre": "Sécurité des applications web", "prestataire": "CyberFormation Gabon",
+      "type_formation": "technique", "date_debut": "2026-07-08", "date_fin": "2026-07-10",
+      "duree_heures": 21, "statut": "planifie", "participants": [3, 4] } },
+  { "model": "training.trainingprogram", "pk": 2, "fields": {
+      "titre": "Communication et leadership", "prestataire": "ManagePro",
+      "type_formation": "management", "date_debut": "2026-05-12", "date_fin": "2026-05-14",
+      "duree_heures": 18, "statut": "termine", "participants": [1, 2, 5] } },
+  { "model": "training.trainingprogram", "pk": 3, "fields": {
+      "titre": "Gestion du temps", "prestataire": "ManagePro",
+      "type_formation": "soft_skills", "date_debut": "2026-06-25", "date_fin": "2026-06-26",
+      "duree_heures": 12, "statut": "en_cours", "participants": [6, 7] } },
+
+  { "model": "documents.document", "pk": 1, "fields": {
+      "nom": "Règlement intérieur 2026", "categorie": "politique", "fichier": "documents/reglement_interieur_2026.pdf",
+      "uploade_par": 1, "date_upload": "2026-01-15T10:00:00Z", "acces_employes": [] } },
+  { "model": "documents.document", "pk": 2, "fields": {
+      "nom": "Contrat - Patrick Ndong", "categorie": "contrat", "fichier": "documents/contrat_ndong.pdf",
+      "uploade_par": 1, "date_upload": "2023-01-10T09:30:00Z", "acces_employes": [3] } },
+  { "model": "documents.document", "pk": 3, "fields": {
+      "nom": "Support formation sécurité web", "categorie": "formation", "fichier": "documents/support_securite_web.pdf",
+      "uploade_par": 2, "date_upload": "2026-07-08T08:45:00Z", "acces_employes": [3, 4] } },
+  { "model": "documents.document", "pk": 4, "fields": {
+      "nom": "Grille d'évaluation annuelle", "categorie": "evaluation", "fichier": "documents/grille_evaluation.pdf",
+      "uploade_par": 1, "date_upload": "2025-12-01T15:10:00Z", "acces_employes": [] } },
+
+  { "model": "actes.acteadministratif", "pk": 1, "fields": {
+      "reference": "ACT-2026-001", "employe": 8, "type_acte": "mise_a_pied",
+      "objet": "Mise à pied disciplinaire de 3 jours", "contenu": "Absences répétées non justifiées.",
+      "date_acte": "2026-06-15", "date_debut": "2026-06-17", "date_fin": "2026-06-19",
+      "statut": "signe", "fichier": "actes/act-2026-001_mise_a_pied_signe.pdf", "redige_par": 1 } },
+  { "model": "actes.acteadministratif", "pk": 2, "fields": {
+      "reference": "ACT-2026-002", "employe": 3, "type_acte": "demande_explication",
+      "objet": "Demande d'explication - retard livraison projet", "contenu": "Veuillez justifier le retard constaté.",
+      "date_acte": "2026-06-20", "date_debut": null, "date_fin": null,
+      "statut": "emis", "fichier": "actes/act-2026-002_demande_explication_signe.pdf", "redige_par": 1 } },
+  { "model": "actes.acteadministratif", "pk": 3, "fields": {
+      "reference": "ACT-2026-003", "employe": 6, "type_acte": "felicitation",
+      "objet": "Lettre de félicitations - clôture comptable", "contenu": "Pour l'excellent travail réalisé.",
+      "date_acte": "2026-06-25", "date_debut": null, "date_fin": null,
+      "statut": "signe", "fichier": "actes/act-2026-003_felicitations_signe.pdf", "redige_par": 1 } },
+  { "model": "actes.acteadministratif", "pk": 4, "fields": {
+      "reference": "ACT-2026-004", "employe": 4, "type_acte": "presence",
+      "objet": "Attestation de présence au poste - mai 2026", "contenu": "",
+      "date_acte": "2026-06-01", "date_debut": "2026-05-01", "date_fin": "2026-05-31",
+      "statut": "archive", "fichier": "actes/act-2026-004_presence_signe.pdf", "redige_par": 2 } },
+  { "model": "actes.acteadministratif", "pk": 5, "fields": {
+      "reference": "ACT-2026-005", "employe": 7, "type_acte": "note_service",
+      "objet": "Note de service - nouveaux horaires", "contenu": "Application des nouveaux horaires dès juillet.",
+      "date_acte": "2026-06-27", "date_debut": null, "date_fin": null,
+      "statut": "brouillon", "fichier": "", "redige_par": 1 } }
+]

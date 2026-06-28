@@ -1,0 +1,27 @@
+<div class="max-w-2xl">
+  <h2 class="text-2xl font-bold mb-6">{{ titre }}</h2>
+  <form method="post"
+        enctype="multipart/form-data"
+        hx-post="{{ request.path }}"
+        hx-target="#main-content"
+        hx-push-url="true"
+        class="app-form bg-white rounded-xl shadow-sm p-6 space-y-4">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="text-red-600 text-sm">{{ form.non_field_errors }}</div>
+    {% endif %}
+    {% for field in form %}
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<p class="text-gray-400 text-xs mt-1">{{ field.help_text }}</p>{% endif %}
+      {% if field.errors %}<p class="text-red-500 text-xs mt-1">{{ field.errors|striptags }}</p>{% endif %}
+    </div>
+    {% endfor %}
+    <div class="flex gap-3 pt-2">
+      <button type="submit" class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700">Enregistrer</button>
+      <a href="{{ cancel_url }}" hx-get="{{ cancel_url }}" hx-target="#main-content" hx-push-url="true"
+         class="px-4 py-2 rounded-lg border hover:bg-gray-50">Annuler</a>
+    </div>
+  </form>
+</div>

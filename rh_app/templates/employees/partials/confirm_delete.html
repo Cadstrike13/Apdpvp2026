@@ -1,0 +1,9 @@
+<div class="bg-white rounded-xl shadow-sm p-6 max-w-md">
+  <p class="mb-4">Confirmer la suppression de <strong>{{ employee }}</strong> ?</p>
+  <div class="flex gap-3">
+    <button hx-delete="{% url 'employees:delete' employee.pk %}"
+            hx-target="#employee-{{ employee.pk }}"
+            hx-swap="outerHTML"
+            class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Supprimer</button>
+  </div>
+</div>

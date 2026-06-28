@@ -1,0 +1,105 @@
+<h2 class="text-2xl font-bold mb-6">Tableau de bord</h2>
+
+<!-- Statistiques -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+  <div class="bg-white p-6 rounded-xl shadow-sm flex items-center gap-4">
+    <div class="w-12 h-12 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+      <i data-lucide="users" class="w-6 h-6"></i>
+    </div>
+    <div><p class="text-sm text-gray-500">Employes actifs</p><p class="text-2xl font-bold">{{ total_employes }}</p></div>
+  </div>
+  <div class="bg-white p-6 rounded-xl shadow-sm flex items-center gap-4">
+    <div class="w-12 h-12 rounded-lg bg-yellow-100 text-yellow-600 flex items-center justify-center">
+      <i data-lucide="calendar-clock" class="w-6 h-6"></i>
+    </div>
+    <div><p class="text-sm text-gray-500">Conges en attente</p><p class="text-2xl font-bold">{{ conges_en_attente }}</p></div>
+  </div>
+  <div class="bg-white p-6 rounded-xl shadow-sm flex items-center gap-4">
+    <div class="w-12 h-12 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+      <i data-lucide="briefcase" class="w-6 h-6"></i>
+    </div>
+    <div><p class="text-sm text-gray-500">Offres ouvertes</p><p class="text-2xl font-bold">{{ offres_ouvertes }}</p></div>
+  </div>
+  <div class="bg-white p-6 rounded-xl shadow-sm flex items-center gap-4">
+    <div class="w-12 h-12 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center">
+      <i data-lucide="file-text" class="w-6 h-6"></i>
+    </div>
+    <div><p class="text-sm text-gray-500">Actes administratifs</p><p class="text-2xl font-bold">{{ total_actes }}</p></div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <!-- Prochains anniversaires -->
+  <div class="bg-white p-6 rounded-xl shadow-sm">
+    <h3 class="font-semibold mb-4 flex items-center gap-2"><i data-lucide="cake" class="w-5 h-5 text-pink-500"></i> Prochains anniversaires</h3>
+    <ul class="divide-y divide-gray-100">
+      {% for e in anniversaires %}
+      <li class="py-2 flex justify-between items-center text-sm">
+        <span>{{ e.prenom }} {{ e.nom }} <span class="text-gray-400">— {{ e.prochain_anniversaire|date:"d/m" }}</span></span>
+        <span class="text-xs">
+          {% if e.jours_avant_anniversaire == 0 %}
+            <span class="px-2 py-1 rounded-full bg-pink-100 text-pink-700">Aujourd'hui 🎉</span>
+          {% else %}
+            <span class="text-gray-500">dans {{ e.jours_avant_anniversaire }} j</span>
+          {% endif %}
+          {% if e.age is not None %}<span class="text-gray-400">· {{ e.age }} ans</span>{% endif %}
+        </span>
+      </li>
+      {% empty %}
+      <li class="py-2 text-gray-400 text-sm">Aucun anniversaire dans les 30 jours.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <!-- Anniversaires de service -->
+  <div class="bg-white p-6 rounded-xl shadow-sm">
+    <h3 class="font-semibold mb-4 flex items-center gap-2"><i data-lucide="award" class="w-5 h-5 text-amber-500"></i> Anniversaires de service</h3>
+    <ul class="divide-y divide-gray-100">
+      {% for e in anniversaires_service %}
+      <li class="py-2 flex justify-between items-center text-sm">
+        <span>{{ e.prenom }} {{ e.nom }} <span class="text-gray-400">— {{ e.prochain_anniversaire_service|date:"d/m" }}</span></span>
+        <span class="text-xs">
+          {% if e.jours_avant_anniversaire_service == 0 %}
+            <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-700">Aujourd'hui</span>
+          {% else %}
+            <span class="text-gray-500">dans {{ e.jours_avant_anniversaire_service }} j</span>
+          {% endif %}
+          {% if e.anciennete is not None %}<span class="text-gray-400">· {{ e.anciennete }} ans</span>{% endif %}
+        </span>
+      </li>
+      {% empty %}
+      <li class="py-2 text-gray-400 text-sm">Aucun anniversaire de service dans les 30 jours.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <!-- Prochaines formations -->
+  <div class="bg-white p-6 rounded-xl shadow-sm">
+    <h3 class="font-semibold mb-4 flex items-center gap-2"><i data-lucide="graduation-cap" class="w-5 h-5 text-emerald-500"></i> Prochaines formations</h3>
+    <ul class="divide-y divide-gray-100">
+      {% for f in prochaines_formations %}
+      <li class="py-2 flex justify-between text-sm">
+        <span>{{ f.titre }}</span>
+        <span class="text-gray-400">{{ f.date_debut|date:"d/m/Y" }}</span>
+      </li>
+      {% empty %}
+      <li class="py-2 text-gray-400 text-sm">Aucune formation a venir.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <!-- Actes recents -->
+  <div class="bg-white p-6 rounded-xl shadow-sm">
+    <h3 class="font-semibold mb-4 flex items-center gap-2"><i data-lucide="file-text" class="w-5 h-5 text-purple-500"></i> Actes recents</h3>
+    <ul class="divide-y divide-gray-100">
+      {% for a in actes_recents %}
+      <li class="py-2 flex justify-between text-sm">
+        <span>{{ a.get_type_acte_display }} <span class="text-gray-400">— {{ a.employe }}</span></span>
+        <span class="text-gray-400">{{ a.date_acte|date:"d/m/Y" }}</span>
+      </li>
+      {% empty %}
+      <li class="py-2 text-gray-400 text-sm">Aucun acte enregistre.</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>

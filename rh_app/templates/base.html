@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}APDPVP RH{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .app-form input, .app-form select, .app-form textarea {
+      width: 100%; border: 1px solid #d1d5db; border-radius: .5rem; padding: .5rem .75rem;
+      background: #fff; font-size: .875rem;
+    }
+    .app-form input:focus, .app-form select:focus, .app-form textarea:focus {
+      outline: none; border-color: #059669; box-shadow: 0 0 0 2px rgba(5,150,105,.15);
+    }
+    .app-form textarea { min-height: 90px; }
+    .app-form select[multiple] { min-height: 120px; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+<div class="flex h-screen overflow-hidden">
+
+  {% include "partials/sidebar.html" %}
+
+  <div class="flex-1 flex flex-col overflow-hidden">
+    {% include "partials/header.html" %}
+
+    <main class="flex-1 overflow-y-auto p-6" id="main-content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+</div>
+
+<script>
+  lucide.createIcons();
+  document.body.addEventListener("htmx:afterSwap", () => lucide.createIcons());
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

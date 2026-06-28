@@ -1,0 +1,4 @@
+# Variables d'environnement
+.env
+__pycache__/
+*.sqlite3
