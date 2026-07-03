@@ -18,10 +18,15 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import RedirectView
 
 urlpatterns = [
+    # Le lien « changer le mot de passe » de l'admin Django doit utiliser notre
+    # page stylée (accounts:change_password) plutôt que le template admin par défaut.
+    # Ce pattern doit précéder l'include de admin.site.urls pour être prioritaire.
+    path('admin/password_change/', RedirectView.as_view(pattern_name='accounts:change_password')),
     path('admin/', admin.site.urls),
-    path('accounts/', include('accounts.urls')),
+    path('', include('accounts.urls')),
 ]
 
 if settings.DEBUG:

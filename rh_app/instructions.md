@@ -1,6 +1,6 @@
 # Recréer APDPVP-RH avec Django + HTMX
 
-Ce document explique comment recréer l'application RH (actuellement en React/Vite) avec Django et HTMX.
+Ce document décrit l'architecture et les patterns de l'application RH Django + HTMX.
 
 ---
 
@@ -577,25 +577,11 @@ Accéder à `http://127.0.0.1:8000/`
 
 ---
 
-## 15. Correspondance React → Django/HTMX
-
-| Composant React | Équivalent Django/HTMX |
-|----------------|------------------------|
-| `useState` pour filtres | `hx-get` + query params |
-| `useState` pour onglets | `hx-get` + `hx-target` |
-| `fetch` / API calls | Vues Django retournant des partiels HTML |
-| Composants réutilisables | `{% include %}` + partials |
-| React Router | `hx-push-url="true"` + vues Django |
-| Formulaires contrôlés | Django Forms + `crispy-forms` |
-| Mise à jour locale du DOM | `hx-swap` + `hx-target` |
-
----
-
 ## Structure finale des dossiers
 
 ```
-apdpvp-rh/
-├── config/
+rh_app/
+├── rh_conf/
 │   ├── settings.py
 │   ├── urls.py
 │   └── wsgi.py
