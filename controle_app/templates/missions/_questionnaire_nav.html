@@ -1,0 +1,13 @@
+<nav class="flex flex-wrap gap-2 mt-3 text-sm">
+  {% for p in page_range %}
+    <a href="{% url 'missions:questionnaire_page' mission.pk p %}"
+       class="px-3 py-1.5 rounded-md font-medium transition-colors
+              {% if p == page %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
+      Page {{ p }}
+    </a>
+  {% endfor %}
+  <a href="{% url 'missions:mission_detail' mission.pk %}"
+     class="px-3 py-1.5 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors ml-2">
+    ← Retour à la mission
+  </a>
+</nav>

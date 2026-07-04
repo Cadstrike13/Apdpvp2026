@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}APDPVP — Missions de contrôle{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto text-center py-8">
+  <h1 class="text-3xl font-semibold mb-4 text-gray-900">Missions de contrôle APDPVP</h1>
+  <p class="text-gray-600 mb-8">
+    Autorité de Protection des Données Personnelles et de la Vie Privée (Gabon) —
+    création des missions, questionnaire d'audit par traitement, verrouillage
+    post-génération du rapport, upload du scan signé et validation.
+  </p>
+  <a href="{% url 'login' %}"
+     class="inline-block bg-blue-600 hover:bg-blue-700 transition-colors text-white px-6 py-3 rounded-md text-sm font-medium shadow-sm">
+    Se connecter
+  </a>
+</div>
+
+<div class="grid gap-4 md:grid-cols-5 max-w-4xl mx-auto text-sm">
+  <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
+    <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold mb-2">1</span>
+    <p class="font-semibold mb-1 text-gray-900">Mission</p>
+    <p class="text-gray-500">Création, entité contrôlée, groupe de contrôle.</p>
+  </div>
+  <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
+    <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold mb-2">2</span>
+    <p class="font-semibold mb-1 text-gray-900">Questionnaire</p>
+    <p class="text-gray-500">5 pages × 10 traitements audités.</p>
+  </div>
+  <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
+    <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold mb-2">3</span>
+    <p class="font-semibold mb-1 text-gray-900">Rapport</p>
+    <p class="text-gray-500">Génération et verrouillage de la mission.</p>
+  </div>
+  <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
+    <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold mb-2">4</span>
+    <p class="font-semibold mb-1 text-gray-900">Scan signé</p>
+    <p class="text-gray-500">Upload du document signé par les parties.</p>
+  </div>
+  <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
+    <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-green-100 text-green-700 text-xs font-semibold mb-2">5</span>
+    <p class="font-semibold mb-1 text-gray-900">Validation</p>
+    <p class="text-gray-500">Clôture par le chef de mission.</p>
+  </div>
+</div>
+{% endblock %}

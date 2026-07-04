@@ -1,0 +1,10 @@
+Django>=5.0,<6.1
+python-dotenv>=1.0
+django-simple-history>=3.5
+requests>=2.31
+python-docx>=1.2
+# weasyprint>=69   # génère aussi le PDF du PV (missions/generate_pv.py) — nécessite
+                    # des libs système (Pango/Cairo/GObject, cf. en-tête du fichier),
+                    # présentes dans l'image Docker de prod mais pas forcément en dev
+                    # (ex. Windows sans GTK). Le .docx reste généré sans WeasyPrint.
+# psycopg2-binary>=2.9   # décommenter pour PostgreSQL en production (DB_ENGINE=postgresql)

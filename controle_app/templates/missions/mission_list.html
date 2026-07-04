@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+  <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">Missions de contrôle</h1>
+  <a href="{% url 'missions:mission_create' %}"
+     class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm">
+    + Nouvelle mission
+  </a>
+</div>
+<div class="bg-white shadow-sm border border-gray-100 rounded-lg overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-left text-gray-600">
+      <tr>
+        <th class="px-4 py-3 font-medium">Entité contrôlée</th>
+        <th class="px-4 py-3 font-medium">Date</th>
+        <th class="px-4 py-3 font-medium">Statut</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for mission in missions %}
+      <tr class="hover:bg-gray-50 transition-colors">
+        <td class="px-4 py-3 text-gray-900">{{ mission.entite_controlee }}</td>
+        <td class="px-4 py-3 text-gray-600">{{ mission.date_mission }}</td>
+        <td class="px-4 py-3">
+          <span class="px-2 py-1 rounded-full text-xs font-medium {{ mission.statut_css_classes }}">
+            {{ mission.get_statut_display }}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-right">
+          <a href="{% url 'missions:mission_detail' mission.pk %}" class="text-blue-600 hover:text-blue-800 font-medium">
+            Ouvrir →
+          </a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="px-4 py-6 text-center text-gray-500">Aucune mission pour l'instant.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

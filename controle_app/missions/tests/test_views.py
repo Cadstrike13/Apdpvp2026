@@ -1,0 +1,392 @@
+import tempfile
+
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.models.fields.files import FieldFile
+from django.test import TestCase, override_settings
+from django.urls import reverse
+
+from agents.models import AgentControleur
+from entites.models import EntiteControlee
+from personnes.models import Personne
+
+from ..models import EvaluationConformite, MembreGroupeControle, MissionControle, RoleMission, StatutMission
+
+MEDIA_ROOT_TEST = tempfile.mkdtemp()
+
+
+def creer_mission(**kwargs):
+    entite = kwargs.pop("entite_controlee", None) or EntiteControlee.objects.create(nom="ACME SA")
+    return MissionControle.objects.create(entite_controlee=entite, date_mission="2026-07-01", **kwargs)
+
+
+def creer_utilisateur_agent(username, external_id):
+    user = User.objects.create_user(username=username, password="pass-123")
+    agent = AgentControleur.objects.create(external_id=external_id, nom=username, prenom=username, user=user)
+    return user, agent
+
+
+def completer_page(client, mission, page):
+    """Soumet la page `page` du questionnaire telle quelle (valeurs par défaut) —
+    reproduit le pattern GET (formset+queryset) -> POST utilisé par la vue."""
+    r = client.get(reverse("missions:questionnaire_page", args=[mission.pk, page]))
+    formset = r.context["formset"]
+    data = {f"form-{k}": v for k, v in formset.management_form.initial.items()}
+    for i, form in enumerate(formset.forms):
+        for name in form.fields:
+            value = form.initial.get(name, form.fields[name].initial)
+            if value is None or isinstance(value, FieldFile):
+                value = ""
+            data[f"form-{i}-{name}"] = value
+        data[f"form-{i}-id"] = form.instance.pk
+    return client.post(reverse("missions:questionnaire_page", args=[mission.pk, page]), data)
+
+
+class PermissionsTests(TestCase):
+    def setUp(self):
+        self.mission = creer_mission()
+        self.chef_user, self.chef_agent = creer_utilisateur_agent("chef", "AG-CHEF")
+        self.agent_user, self.agent_agent = creer_utilisateur_agent("agent", "AG-AGENT")
+        self.exterieur_user, _ = creer_utilisateur_agent("exterieur", "AG-EXT")
+        MembreGroupeControle.objects.create(mission=self.mission, agent=self.chef_agent, role=RoleMission.CHEF)
+        MembreGroupeControle.objects.create(mission=self.mission, agent=self.agent_agent, role=RoleMission.AGENT)
+
+    def test_anonyme_redirige_vers_login(self):
+        r = self.client.get(reverse("missions:mission_detail", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/accounts/login/", r.url)
+
+    def test_utilisateur_non_membre_refuse(self):
+        self.client.login(username="exterieur", password="pass-123")
+        r = self.client.get(reverse("missions:mission_detail", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 403)
+
+    def test_membre_autorise(self):
+        self.client.login(username="agent", password="pass-123")
+        r = self.client.get(reverse("missions:mission_detail", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 200)
+
+    def test_agent_non_chef_refuse_sur_vue_chef(self):
+        self.client.login(username="agent", password="pass-123")
+        r = self.client.post(reverse("missions:mission_valider", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 403)
+
+    def test_chef_autorise_sur_vue_chef(self):
+        self.client.login(username="chef", password="pass-123")
+        r = self.client.post(reverse("missions:mission_valider", args=[self.mission.pk]))
+        # refusé au niveau métier (statut), pas au niveau permission : donc redirect, pas 403
+        self.assertEqual(r.status_code, 302)
+
+    def test_superuser_bypass_sans_etre_membre(self):
+        """Régression : request.mission doit être posé même quand la vue
+        court-circuite via is_superuser (bug corrigé dans core/permissions.py)."""
+        superuser = User.objects.create_superuser(username="admin", password="pass-123", email="a@a.com")
+        self.client.force_login(superuser)
+        r = self.client.get(reverse("missions:mission_detail", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 200)
+
+
+class DashboardViewsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(username="admin", password="pass-123", email="a@a.com")
+        self.client.force_login(self.user)
+
+    def test_mission_list(self):
+        r = self.client.get(reverse("missions:mission_list"))
+        self.assertEqual(r.status_code, 200)
+
+    def test_mission_create(self):
+        entite = EntiteControlee.objects.create(nom="ACME SA")
+        r = self.client.post(reverse("missions:mission_create"), {
+            "entite_controlee": entite.pk,
+            "date_mission": "2026-07-10",
+            "commentaires_observations": "",
+        })
+        self.assertEqual(r.status_code, 302)
+        mission = MissionControle.objects.get(entite_controlee=entite)
+        self.assertEqual(mission.reponses.count(), 10)
+
+    def test_mission_create_avec_nouvelle_entite(self):
+        r = self.client.post(reverse("missions:mission_create"), {
+            "nom_nouvelle_entite": "Beta SARL",
+            "date_mission": "2026-07-10",
+            "commentaires_observations": "",
+        })
+        self.assertEqual(r.status_code, 302)
+        mission = MissionControle.objects.get(entite_controlee__nom="Beta SARL")
+        self.assertEqual(mission.reponses.count(), 10)
+
+    def test_mission_create_refuse_sans_entite_ni_nom(self):
+        r = self.client.post(reverse("missions:mission_create"), {
+            "date_mission": "2026-07-10",
+            "commentaires_observations": "",
+        })
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(MissionControle.objects.exists())
+
+    def test_membre_et_personne_ajouter(self):
+        mission = creer_mission()
+        agent = AgentControleur.objects.create(external_id="AG-001", nom="Obiang", prenom="Marie")
+        personne = Personne.objects.create(nom="Test", prenom="Personne")
+
+        r = self.client.post(reverse("missions:membre_ajouter", args=[mission.pk]), {
+            "agent": agent.pk, "role": RoleMission.CHEF,
+        })
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(mission.membres_groupe.count(), 1)
+
+        r = self.client.post(reverse("missions:personne_ajouter", args=[mission.pk]), {"personne": personne.pk})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(mission.personnes_interrogees.count(), 1)
+
+    def test_personne_ajouter_cree_une_nouvelle_personne(self):
+        mission = creer_mission()
+        r = self.client.post(reverse("missions:personne_ajouter", args=[mission.pk]), {
+            "nom": "Ndong", "prenom": "Alice", "email": "alice@example.com", "telephone": "01020304",
+            "poste_snapshot": "Comptable", "service_snapshot": "Finance",
+        })
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(mission.personnes_interrogees.count(), 1)
+        interrogee = mission.personnes_interrogees.first()
+        self.assertEqual(interrogee.personne.nom, "Ndong")
+        self.assertEqual(interrogee.personne.prenom, "Alice")
+        self.assertEqual(interrogee.poste_snapshot, "Comptable")
+        self.assertEqual(interrogee.service_snapshot, "Finance")
+
+    def test_personne_ajouter_refuse_sans_personne_ni_nom_prenom(self):
+        mission = creer_mission()
+        r = self.client.post(reverse("missions:personne_ajouter", args=[mission.pk]), {})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(mission.personnes_interrogees.count(), 0)
+
+    def test_observations_modifier(self):
+        mission = creer_mission()
+        r = self.client.post(reverse("missions:observations_modifier", args=[mission.pk]), {
+            "commentaires_observations": "RAS",
+        })
+        self.assertEqual(r.status_code, 302)
+        mission.refresh_from_db()
+        self.assertEqual(mission.commentaires_observations, "RAS")
+
+
+class QuestionnaireFlowTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(username="admin", password="pass-123", email="a@a.com")
+        self.client.force_login(self.user)
+        self.mission = creer_mission()
+
+    def test_parcours_des_5_pages_complete_le_statut(self):
+        for page in range(1, 6):
+            r = completer_page(self.client, self.mission, page)
+            self.assertEqual(r.status_code, 302, r.content[:1000])
+
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.QUESTIONNAIRE_COMPLETE)
+        self.assertEqual(
+            list(self.mission.journal.values_list("type_action", flat=True)),
+            ["questionnaire_complete"],
+        )
+
+
+@override_settings(MEDIA_ROOT=MEDIA_ROOT_TEST)
+class ClotureMissionTests(TestCase):
+    def setUp(self):
+        self.chef_user, self.chef_agent = creer_utilisateur_agent("chef", "AG-CHEF")
+        self.mission = creer_mission()
+        MembreGroupeControle.objects.create(mission=self.mission, agent=self.chef_agent, role=RoleMission.CHEF)
+        self.client.login(username="chef", password="pass-123")
+
+    def test_marquer_pv_genere_refuse_si_questionnaire_incomplet(self):
+        r = self.client.post(reverse("missions:pv_marquer_genere", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.BROUILLON)
+
+    def test_parcours_complet_jusqu_a_validation(self):
+        for page in range(1, 6):
+            completer_page(self.client, self.mission, page)
+
+        r = self.client.post(reverse("missions:pv_marquer_genere", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.PV_GENERE)
+        self.assertTrue(self.mission.est_verrouillee)
+        self.assertTrue(self.mission.pv_document.name)
+        self.assertTrue(self.mission.pv_document.name.endswith(".docx"))
+
+        scan = SimpleUploadedFile("scan.pdf", b"%PDF-1.4 contenu factice", content_type="application/pdf")
+        r = self.client.post(reverse("missions:scan_uploader", args=[self.mission.pk]), {"scan_signe": scan})
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.PV_SCAN_UPLOAD)
+        self.assertTrue(self.mission.scan_signe.name)
+
+        r = self.client.post(reverse("missions:rapport_marquer_genere", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.RAPPORT_GENERE)
+
+        rapport_scan = SimpleUploadedFile("rapport.pdf", b"%PDF-1.4 contenu factice", content_type="application/pdf")
+        r = self.client.post(
+            reverse("missions:rapport_uploader", args=[self.mission.pk]), {"rapport_signe": rapport_scan}
+        )
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.RAPPORT_SCAN_UPLOAD)
+        self.assertTrue(self.mission.rapport_signe.name)
+
+        r = self.client.post(reverse("missions:mission_valider", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.VALIDEE)
+
+    def test_rapport_uploader_refuse_extension_non_autorisee(self):
+        self.mission.statut = StatutMission.RAPPORT_GENERE
+        self.mission.save()
+
+        rapport = SimpleUploadedFile("rapport.exe", b"binaire", content_type="application/octet-stream")
+        r = self.client.post(
+            reverse("missions:rapport_uploader", args=[self.mission.pk]), {"rapport_signe": rapport}
+        )
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.RAPPORT_GENERE)
+        self.assertFalse(self.mission.rapport_signe)
+
+    def test_valider_refuse_sans_rapport_signe_uploade(self):
+        self.mission.statut = StatutMission.RAPPORT_GENERE
+        self.mission.save()
+
+        r = self.client.post(reverse("missions:mission_valider", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.RAPPORT_GENERE)
+
+    def test_rapport_marquer_genere_refuse_avant_scan_du_pv(self):
+        self.mission.statut = StatutMission.PV_GENERE
+        self.mission.save()
+
+        r = self.client.post(reverse("missions:rapport_marquer_genere", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.PV_GENERE)
+
+    def test_scan_refuse_extension_non_autorisee(self):
+        self.mission.statut = StatutMission.PV_GENERE
+        self.mission.save()
+
+        scan = SimpleUploadedFile("scan.exe", b"binaire", content_type="application/octet-stream")
+        r = self.client.post(reverse("missions:scan_uploader", args=[self.mission.pk]), {"scan_signe": scan})
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.PV_GENERE)
+        self.assertFalse(self.mission.scan_signe)
+
+    def test_valider_refuse_sans_rapport_genere(self):
+        self.mission.statut = StatutMission.PV_SCAN_UPLOAD
+        self.mission.save()
+
+        r = self.client.post(reverse("missions:mission_valider", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.PV_SCAN_UPLOAD)
+
+
+@override_settings(MEDIA_ROOT=MEDIA_ROOT_TEST)
+class EvaluationEtInfosPVTests(TestCase):
+    def setUp(self):
+        self.chef_user, self.chef_agent = creer_utilisateur_agent("chef", "AG-CHEF")
+        self.mission = creer_mission()
+        MembreGroupeControle.objects.create(mission=self.mission, agent=self.chef_agent, role=RoleMission.CHEF)
+        self.client.login(username="chef", password="pass-123")
+
+    def test_agent_non_chef_refuse_sur_evaluation(self):
+        agent_user, agent_agent = creer_utilisateur_agent("agent", "AG-AGENT")
+        MembreGroupeControle.objects.create(mission=self.mission, agent=agent_agent, role=RoleMission.AGENT)
+        self.client.login(username="agent", password="pass-123")
+
+        r = self.client.get(reverse("missions:evaluation_page", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 403)
+
+    def test_enregistrer_evaluation(self):
+        r = self.client.get(reverse("missions:evaluation_page", args=[self.mission.pk]))
+        formset = r.context["formset"]
+        data = {f"form-{k}": v for k, v in formset.management_form.initial.items()}
+        for i, form in enumerate(formset.forms):
+            data[f"form-{i}-id"] = form.instance.pk
+            data[f"form-{i}-observations_controleur"] = ""
+            data[f"form-{i}-observations_entite"] = ""
+        # Ne renseigne un verdict que pour la première ligne (traitement "a").
+        data["form-0-evaluation"] = EvaluationConformite.CTO
+        data["form-0-observations_controleur"] = "RAS."
+
+        r = self.client.post(reverse("missions:evaluation_page", args=[self.mission.pk]), data)
+        self.assertEqual(r.status_code, 302, r.content[:1000])
+
+        reponse_a = self.mission.reponses.get(traitement="a")
+        self.assertEqual(reponse_a.evaluation, EvaluationConformite.CTO)
+        self.assertEqual(reponse_a.observations_controleur, "RAS.")
+
+    def test_evaluation_impossible_si_mission_verrouillee(self):
+        self.mission.statut = StatutMission.PV_GENERE
+        self.mission.save()
+
+        reponse = self.mission.reponses.first()
+        reponse.evaluation = EvaluationConformite.CTO
+        with self.assertRaises(ValidationError):
+            reponse.save()
+
+    def test_infos_pv_modifier(self):
+        r = self.client.post(reverse("missions:infos_pv_modifier", args=[self.mission.pk]), {
+            "mode_pv": "in situ",
+            "nom_representant_entite": "M. Test Représentant",
+            "heure_controle": "09h30",
+            "deliberation_numero": "001/2026",
+            "deliberation_organe": "Conseil de l'APDPVP",
+            "lieu_signature": "Libreville",
+            "date_signature": "2026-07-10",
+            "heure_signature": "12h00",
+        })
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.nom_representant_entite, "M. Test Représentant")
+        self.assertEqual(self.mission.mode_pv, "in situ")
+
+
+@override_settings(MEDIA_ROOT=MEDIA_ROOT_TEST)
+class GenerationPVTests(TestCase):
+    """Vérifie l'intégration réelle avec missions/generate_pv.py (pas de mock)."""
+
+    def setUp(self):
+        self.chef_user, self.chef_agent = creer_utilisateur_agent("chef", "AG-CHEF")
+        self.mission = creer_mission()
+        MembreGroupeControle.objects.create(mission=self.mission, agent=self.chef_agent, role=RoleMission.CHEF)
+        self.mission.nom_representant_entite = "M. Jean Test"
+        self.mission.mode_pv = "in situ"
+        self.mission.save()
+        self.mission.statut = StatutMission.QUESTIONNAIRE_COMPLETE
+        self.mission.save()
+        self.client.login(username="chef", password="pass-123")
+
+    def test_pv_document_contient_les_donnees_de_la_mission(self):
+        from docx import Document
+
+        reponse = self.mission.reponses.get(traitement="a")
+        reponse.evaluation = EvaluationConformite.CTO
+        reponse.observations_controleur = "Observation spécifique au traitement a."
+        reponse.save()
+
+        r = self.client.post(reverse("missions:pv_marquer_genere", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+
+        self.assertTrue(self.mission.pv_document.name)
+        with self.mission.pv_document.open("rb") as f:
+            doc = Document(f)
+        texte_complet = "\n".join(p.text for p in doc.paragraphs)
+        texte_complet += "\n".join(cell.text for table in doc.tables for row in table.rows for cell in row.cells)
+
+        self.assertIn("ACME SA", texte_complet)
+        self.assertIn("Jean Test", texte_complet)
+        self.assertIn("Observation spécifique au traitement a.", texte_complet)

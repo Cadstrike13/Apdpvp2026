@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-4">
+  <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">{{ mission.entite_controlee }} — Questionnaire</h1>
+  <p class="text-gray-500 text-sm">Page {{ page }}/5 — Accès et transferts internationaux</p>
+  {% include "missions/_questionnaire_nav.html" %}
+</div>
+
+{% if mission.est_verrouillee %}
+<p class="mb-4 rounded-md bg-amber-50 border border-amber-100 text-amber-800 px-4 py-2 text-sm">🔒 Mission verrouillée : lecture seule.</p>
+{% endif %}
+
+<p class="mb-4 text-xs text-gray-500">
+  Rappel : « personnes habilitées » = personnes ayant accès aux données dans le cadre du
+  traitement, à ne pas confondre avec les personnes interrogées pendant l'audit lui-même.
+</p>
+
+<form method="post">
+  {% csrf_token %}
+  {{ formset.management_form }}
+
+  <div class="flex flex-wrap gap-2 mb-6">
+    {% for form, ligne in lignes %}
+    <button type="button"
+            class="traitement-pastille w-9 h-9 rounded-full text-sm font-medium transition-colors
+                   {% if forloop.first %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}"
+            title="{{ ligne.reponse.get_traitement_display }}">
+      {{ ligne.reponse.traitement|upper }}
+    </button>
+    {% endfor %}
+  </div>
+
+  {% for form, ligne in lignes %}
+  <div class="traitement-card {% if not forloop.first %}hidden{% endif %} bg-white shadow-sm border border-gray-100 rounded-lg p-6 mb-4"
+       data-traitement="{{ ligne.reponse.traitement }}">
+    {{ form.id }}
+    <h2 class="font-semibold text-blue-800 mb-4">
+      <span class="text-gray-400 text-sm font-normal">{{ forloop.counter }}/10</span>
+      {{ ligne.reponse.get_traitement_display }}
+    </h2>
+
+    {% if form.errors %}
+    <p class="erreurs-traitement text-red-600 text-xs mb-4">{{ form.errors }}</p>
+    {% endif %}
+
+    <div class="space-y-4 max-w-xl">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Personnes habilitées — noms</label>
+        {{ form.personnes_habilitees_noms }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Personnes habilitées — fonctions</label>
+        {{ form.personnes_habilitees_fonctions }}
+      </div>
+
+      {% if ligne.reponse.traitement == "i" %}
+      <div class="pt-3 border-t border-gray-100">
+        <p class="text-xs text-gray-400 mb-3">Spécifique à l'interconnexion</p>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Entités d'interconnexion</label>
+        {{ form.entites_interconnexion }}
+      </div>
+      {% endif %}
+
+      {% if ligne.reponse.traitement == "h" %}
+      <div class="pt-3 border-t border-gray-100 space-y-3">
+        <p class="text-xs text-gray-400">Spécifique au transfert de données</p>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Pays de transfert</label>
+          {{ form.pays_transfert }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Autorité de protection du pays destinataire</label>
+          {{ form.autorite_protection_pays }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Entité destinataire — nom/adresse</label>
+          {{ form.entite_destinataire_nom_adresse }}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if ligne.reponse.traitement == "e" %}
+      <div class="pt-3 border-t border-gray-100">
+        <p class="text-xs text-gray-400 mb-3">Spécifique au contrôle d'accès biométrique</p>
+        <div class="flex flex-wrap gap-x-6 gap-y-2 mb-3">
+          <label class="flex items-center gap-2 text-sm text-gray-700">{{ form.empreinte_pouces_index }} Pouces/index</label>
+          <label class="flex items-center gap-2 text-sm text-gray-700">{{ form.empreinte_palmaire }} Palmaire</label>
+          <label class="flex items-center gap-2 text-sm text-gray-700">{{ form.empreinte_faciale }} Faciale</label>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Autre type d'empreinte</label>
+          {{ form.empreinte_autres }}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="flex justify-between mt-6 pt-4 border-t border-gray-100">
+      <button type="button"
+              class="traitement-precedent px-3 py-2 rounded-md text-sm bg-gray-100 text-gray-600 hover:bg-gray-200 {% if forloop.first %}invisible{% endif %}">
+        ← Précédent
+      </button>
+      <button type="button"
+              class="traitement-suivant px-3 py-2 rounded-md text-sm bg-gray-100 text-gray-600 hover:bg-gray-200 {% if forloop.last %}invisible{% endif %}">
+        Suivant →
+      </button>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if not mission.est_verrouillee %}
+  <div class="mt-6 flex justify-end">
+    <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm">
+      Enregistrer et continuer
+    </button>
+  </div>
+  {% endif %}
+</form>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script src="{% static 'js/questionnaire.js' %}"></script>
+{% endblock %}
