@@ -13,7 +13,7 @@ Internet
 [Traefik] ── réseau : traefik_net (commun à tous les services)
     │
     ├── auth.apdpvp.local  ──► auth_app      (Django, port 8000)
-    ├── rh.apdpvp.local    ──► rh_app        (Django, port 8001)  ◄── apdpvp-rh (React)
+    ├── rh.apdpvp.local    ──► rh_app        (Django, port 8001)
     ├── missions.apdpvp.local ─► missions_controle (Django)
     ├── depanage.apdpvp.local ─► depanage_demo    (Spring Boot, port 8083)
     └── questure.apdpvp.local ─► Questure         (Spring Boot, port 8082)
@@ -29,7 +29,7 @@ Chaque application possède son propre réseau isolé. Traefik est connecté à 
 |-------------------|-------------------------------------------|-------------------------------------------|
 | `traefik_net`     | Réseau commun — entrée Traefik            | traefik + tous les services               |
 | `auth_net`        | Réseau isolé de auth_app                  | auth_app                                  |
-| `rh_net`          | Réseau isolé de rh_app + frontend         | rh_app, apdpvp-rh                         |
+| `rh_net`          | Réseau isolé de rh_app                    | rh_app                                    |
 | `depanage_net`    | Réseau isolé de depanage_demo             | depanage_demo                             |
 | `questure_net`    | Réseau isolé de Questure                  | questure                                  |
 | `missions_net`    | Réseau isolé de missions_controle         | missions_controle                         |
@@ -49,7 +49,6 @@ Un seul fichier `traefik.yml` (ou `docker-compose.traefik.yml`) partagé par tou
 | `apdpvp.local`             | auth_app            | 8000         |
 | `auth.apdpvp.local`        | auth_app            | 8000         |
 | `rh.apdpvp.local`          | rh_app              | 8001         |
-| `app.apdpvp.local`         | apdpvp-rh (React)   | 3000         |
 | `depanage.apdpvp.local`    | depanage_demo       | 8083         |
 | `questure.apdpvp.local`    | questure            | 8082         |
 | `missions.apdpvp.local`    | missions_controle   | 8002         |
@@ -105,10 +104,6 @@ labels:
 |-------------------------|----------------------------|--------------------------------|
 | `missions_db`           | `/app/db/missions.sqlite3` | Base de données SQLite         |
 
-### apdpvp-rh (React / Vite)
-
-Pas de volume persistant. Le frontend est une image statique construite (`npm run build`) et servie via Nginx ou directement par Traefik. Données persistantes gérées via Supabase (externe).
-
 ---
 
 ## Variables d'environnement partagées
@@ -146,10 +141,6 @@ apdpvp_2026/
 │   ├── Dockerfile
 │   └── docker-compose.yml       # rh_app + volumes + réseaux rh_net, traefik_net
 │
-├── apdpvp-rh/
-│   ├── Dockerfile
-│   └── docker-compose.yml       # Frontend React + réseaux rh_net, traefik_net
-│
 ├── depanage_demo/
 │   ├── Dockerfile
 │   └── docker-compose.yml       # depanage + volumes + réseaux depanage_net, traefik_net
@@ -185,7 +176,6 @@ cd traefik && docker compose up -d
 # 2. Démarrer les services (dans n'importe quel ordre)
 cd auth_app         && docker compose up -d
 cd rh_app           && docker compose up -d
-cd apdpvp-rh        && docker compose up -d
 cd depanage_demo    && docker compose up -d
 cd Questure         && docker compose up -d
 cd missions_controle && docker compose up -d

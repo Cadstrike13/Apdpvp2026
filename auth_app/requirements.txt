@@ -1,3 +1,5 @@
-django
-pillow
-python-dotenv
+django>=5.0
+django-htmx>=1.17
+pillow>=10.0
+python-dotenv>=1.0
+PyJWT>=2.8

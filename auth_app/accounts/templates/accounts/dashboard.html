@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord — APDPVP{% endblock %}
+{% block page_title %}Mes applications{% endblock %}
+
+{% block content %}
+{% if applications %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+  {% for app in applications %}
+  <a href="{{ app.url }}"
+     class="group bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-{{ app.couleur }}-300 transition">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-11 h-11 rounded-lg bg-{{ app.couleur }}-100 text-{{ app.couleur }}-600 flex items-center justify-center">
+        <i data-lucide="{{ app.icone }}" class="w-6 h-6"></i>
+      </div>
+      <h3 class="font-semibold text-gray-800 group-hover:text-{{ app.couleur }}-700">{{ app.nom }}</h3>
+    </div>
+    <p class="text-sm text-gray-500">{{ app.description }}</p>
+    <span class="inline-flex items-center gap-1 mt-4 text-sm font-medium text-{{ app.couleur }}-600">
+      Accéder <i data-lucide="arrow-right" class="w-4 h-4"></i>
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-16">
+  <i data-lucide="lock" class="w-10 h-10 mx-auto text-gray-300 mb-3"></i>
+  <p class="text-gray-500">Aucune application ne vous est accessible pour le moment.</p>
+  <p class="text-sm text-gray-400 mt-1">Contactez un administrateur pour obtenir un rôle ou un poste.</p>
+</div>
+{% endif %}
+{% endblock %}

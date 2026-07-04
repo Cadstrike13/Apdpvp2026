@@ -1,0 +1,33 @@
+services:
+  rh_app:
+    build: .
+    container_name: rh_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DEBUG=False
+    volumes:
+      - rh_db:/app/db
+      - rh_media:/app/media
+      - rh_static:/app/staticfiles
+    networks:
+      - rh_net
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rh_app.rule=Host(`rh.apdpvp.local`)"
+      - "traefik.http.routers.rh_app.entrypoints=web"
+      - "traefik.http.services.rh_app.loadbalancer.server.port=8001"
+      - "traefik.docker.network=traefik_net"
+
+networks:
+  rh_net:
+    driver: bridge
+  traefik_net:
+    external: true
+
+volumes:
+  rh_db:
+  rh_media:
+  rh_static:

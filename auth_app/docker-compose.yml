@@ -1,0 +1,33 @@
+services:
+  auth_app:
+    build: .
+    container_name: auth_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DEBUG=False
+    volumes:
+      - auth_db:/app/db
+      - auth_media:/app/media
+      - auth_static:/app/staticfiles
+    networks:
+      - auth_net
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth_app.rule=Host(`auth.apdpvp.local`) || Host(`apdpvp.local`)"
+      - "traefik.http.routers.auth_app.entrypoints=web"
+      - "traefik.http.services.auth_app.loadbalancer.server.port=8000"
+      - "traefik.docker.network=traefik_net"
+
+networks:
+  auth_net:
+    driver: bridge
+  traefik_net:
+    external: true
+
+volumes:
+  auth_db:
+  auth_media:
+  auth_static:
