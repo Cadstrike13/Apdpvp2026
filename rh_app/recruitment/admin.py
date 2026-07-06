@@ -12,5 +12,6 @@ class JobPostingAdmin(SoftDeleteAdmin):
 
 @admin.register(Candidate)
 class CandidateAdmin(SoftDeleteAdmin):
-    list_display = ("nom", "offre", "statut", "note", "date_candidature", "is_deleted")
-    list_filter = ("is_deleted", "statut")
+    list_display = ("nom", "type_demande", "priorite", "offre", "statut", "note", "date_candidature", "is_deleted")
+    list_filter = ("is_deleted", "type_demande", "priorite", "statut")
+    search_fields = ("nom", "email")

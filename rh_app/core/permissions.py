@@ -6,6 +6,9 @@ from .roles import Roles
 # Rôles autorisés à gérer les rôles et consulter l'audit
 GESTION_ROLES = (Roles.ADMIN, Roles.SUPERUSER, Roles.DIRECTEUR)
 
+# Rôles autorisés à consulter/gérer la rémunération (données sensibles)
+REMU_ROLES = (Roles.ADMIN, Roles.SUPERUSER, Roles.DIRECTEUR, Roles.CHEF_SERVICE)
+
 
 def has_role(user, *roles):
     if not getattr(user, "is_authenticated", False):

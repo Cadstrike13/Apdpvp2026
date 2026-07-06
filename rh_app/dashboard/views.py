@@ -7,6 +7,7 @@ from leaves.models import LeaveRequest
 from recruitment.models import JobPosting
 from training.models import TrainingProgram
 from actes.models import ActeAdministratif
+from rappels.models import Rappel
 
 HORIZON_JOURS = 30  # fenetre des "prochains" evenements
 
@@ -34,6 +35,7 @@ def dashboard(request):
         "prochaines_formations": TrainingProgram.objects.filter(date_debut__gte=today).order_by("date_debut")[:5],
         "actes_recents": ActeAdministratif.objects.select_related("employe").all()[:5],
         "derniers_conges": LeaveRequest.objects.select_related("employe").order_by("-date_demande")[:5],
+        "rappels": Rappel.objects.filter(traite=False).order_by("date_echeance")[:6],
     }
     template = "dashboard/partials/content.html" if request.htmx else "dashboard/index.html"
     return render(request, template, context)

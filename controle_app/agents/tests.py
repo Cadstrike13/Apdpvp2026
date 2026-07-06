@@ -1,13 +1,46 @@
+from unittest.mock import MagicMock, patch
+
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 
 from .models import AgentControleur
-from .services import MockAgentProvider, get_agent_provider
+from .services import ApiAgentProvider, MockAgentProvider, get_agent_provider
 
 
 class ProviderSelectionTests(TestCase):
     @override_settings(AGENTS_SOURCE="mock")
     def test_mock_par_defaut(self):
         self.assertIsInstance(get_agent_provider(), MockAgentProvider)
+
+    @override_settings(AGENTS_SOURCE="api")
+    def test_api_si_configure(self):
+        self.assertIsInstance(get_agent_provider(), ApiAgentProvider)
+
+
+class ApiAgentProviderTests(TestCase):
+    @patch("requests.get")
+    def test_fetch_agents_appelle_lapi_avec_le_token_et_retourne_la_liste(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "agents": [{"id": "AG-100", "nom": "Test", "prenom": "Api", "poste": "X"}]
+        }
+        mock_get.return_value = mock_response
+
+        with override_settings(AGENTS_API_URL="https://example.test/agents", AGENTS_API_TOKEN="secret-token"):
+            resultat = ApiAgentProvider().fetch_agents()
+
+        self.assertEqual(resultat, [{"id": "AG-100", "nom": "Test", "prenom": "Api", "poste": "X"}])
+        args, kwargs = mock_get.call_args
+        self.assertEqual(args[0], "https://example.test/agents")
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer secret-token")
+        mock_response.raise_for_status.assert_called_once()
+
+
+class SyncAgentsCommandTests(TestCase):
+    @override_settings(AGENTS_SOURCE="mock")
+    def test_commande_synchronise_les_agents_du_mock(self):
+        call_command("sync_agents")
+        self.assertEqual(AgentControleur.objects.count(), 3)
 
 
 class SyncFromSourceTests(TestCase):

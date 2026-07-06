@@ -75,8 +75,19 @@ le **rapport final** est généré — pas l'inverse.
   contrôleur/entité) — saisie manuelle par le chef via la page dédiée
   (`/missions/<pk>/evaluation/`) après le questionnaire et avant la
   génération du PV ; verrouillée comme le reste une fois le PV généré.
-  Alimente le tableau 3 du procès-verbal. Aucun calcul automatique à partir
-  des réponses du questionnaire (toujours hors scope, voir plus bas).
+  Alimente le tableau 3 du procès-verbal.
+- **Suggestion de verdict** (`ReponseTraitement.suggestion_verdict()`) :
+  calcul indicatif à partir d'une checklist de 10 critères concrets
+  (`CRITERES_CONFORMITE` dans `missions/models.py` — déclaration effectuée,
+  droits respectés, contrat/sous-traitants déclarés si sous-traitance,
+  listing caméras pour f/g, mesures organisationnelles/techniques,
+  personnes habilitées, durée de conservation, autorité de protection pour
+  h), seuils 100/70/40 % → CTO/CPA/NC/CPR. Affiché sur la page Évaluation à
+  côté de chaque traitement avec le détail des critères et un bouton
+  « Reprendre la suggestion » qui pré-remplit le verdict sans l'imposer — le
+  contrôleur reste seul responsable de la saisie finale. Les champs
+  purement descriptifs (catégories de données, moyen de transmission...) ne
+  sont volontairement pas notés.
 - **Informations du PV** (`InfosPVForm`, section dédiée sur la fiche
   mission) : mode (in situ/en ligne), nom du représentant de l'entité,
   heure du contrôle, numéro/organe de délibération, lieu/date/heure de
@@ -105,26 +116,43 @@ le **rapport final** est généré — pas l'inverse.
   vers `questionnaire_complete` à la complétion de la page 5 (avant, le statut
   restait bloqué à `brouillon`).
 
-### Suite de tests automatisés (60 tests, `python manage.py test`)
+### Suite de tests automatisés (102 tests, `python manage.py test`, ~98% de
+couverture des lignes hors migrations — mesuré avec `coverage.py` en local,
+pas ajouté aux dépendances du projet)
 
-- `entites` : comportement soft-delete/restauration/hard-delete.
+- `entites` : comportement soft-delete/restauration/hard-delete, y compris
+  au niveau bulk (`queryset.supprimer()`/`.restaurer()`).
 - `personnes` : `Fonction` multi-entités, contrainte d'unicité.
-- `agents` : sélection du provider, `sync_from_source` (idempotence, pas de
-  résurrection silencieuse d'un agent soft-supprimé).
-- `core` : `est_dans_groupe`.
-- `missions` : signal de création des 10 réponses, verrouillage post-génération
-  (chaque modèle protégé), contrainte un seul chef, permissions
-  (`require_membre_mission`/`require_chef_mission`, redirection anonyme, refus
-  403, régression superuser), parcours complet du questionnaire, parcours de
-  clôture (rapport → scan → validation), rejet d'un scan à l'extension non
-  autorisée.
-- Deux bugs réels trouvés et corrigés pendant l'écriture des tests :
+- `agents` : sélection du provider (mock/api), `ApiAgentProvider.fetch_agents()`
+  (requête mockée), `sync_from_source` (idempotence, pas de résurrection
+  silencieuse d'un agent soft-supprimé), commande `sync_agents`.
+- `core` : `est_dans_groupe`/`require_groupe`, `ValidateurTailleFichier`
+  (rejet fichier trop volumineux + égalité pour la stabilité des migrations),
+  commandes `setup_groups` et `seed_dev` (création, garde `DEBUG=False`,
+  idempotence).
+- `missions` : signal de création des 10 réponses, verrouillage
+  post-génération (chaque modèle protégé, y compris la suppression réussie
+  quand la mission n'est *pas* verrouillée), contrainte un seul chef,
+  permissions (`require_membre_mission`/`require_chef_mission`, redirection
+  anonyme, refus 403, régression superuser), parcours complet du
+  questionnaire (y compris 404 sur page inconnue, formset invalide),
+  parcours de clôture complet (PV → scan → rapport → scan rapport →
+  validation) avec tous les gardes de statut et rejets d'extension, échec de
+  génération du PV (exception `generate_pv` mockée) sans verrouiller la
+  mission, sauvegarde du PDF quand disponible, suggestion de conformité
+  (checklist, seuils, critères conditionnels/spécifiques par traitement).
+- Trois bugs réels trouvés et corrigés pendant l'écriture des tests :
   1. `request.mission` jamais posé pour un superuser dans
      `require_membre_mission`/`require_chef_mission` (déjà documenté ci-dessous).
   2. `MissionControle.save()` comparait `date_mission` sans normaliser son type
      (une valeur non encore passée par `full_clean()`, ex. une chaîne
      `"2026-07-01"`, était vue à tort comme une modification par rapport à la
      valeur en base) — corrigé par un `to_python()` explicite.
+  3. `ReponsePageMixin.clean()`/`.delete()` plantait (`RelatedObjectDoesNotExist`,
+     500) au lieu de renvoyer une erreur de formulaire propre, si un
+     formset de questionnaire recevait un `TOTAL_FORMS` supérieur au nombre
+     réel de lignes (management form trafiqué côté client) — corrigé en
+     vérifiant `self.reponse_id` avant d'accéder à `self.reponse`.
 
 ### Documentation
 - `CLAUDE.md` et `AGENTS.md` nettoyés (liens cassés vers `docs/` corrigés,
@@ -148,10 +176,13 @@ le **rapport final** est généré — pas l'inverse.
 
 ## Reste à faire
 
-- [ ] **Calcul de conformité automatique** par traitement (a→j) à partir des
-      réponses `ReponsePage1..5` + score global de l'entité contrôlée — le
-      verdict CTO/CPA/NC/CPR est pour l'instant saisi manuellement par le
-      chef (page Évaluation), pas déduit du questionnaire.
+- [ ] **Faire valider la checklist et les seuils de la suggestion de
+      conformité** par un profil métier/juridique (10 critères et paliers
+      100/70/40 % choisis à dire d'expert technique, pas de référence
+      officielle fournie — voir « Fait » ci-dessus). Le verdict reste de
+      toute façon saisi manuellement, donc pas bloquant.
+- [ ] **Score global de conformité de l'entité contrôlée** (au-delà du
+      verdict par traitement) — non demandé pour l'instant.
 - [ ] **Génération réelle du rapport final Word/PDF** à partir du PV signé —
       `rapport_marquer_genere` reste un simple verrou provisoire sans document
       généré (le PV, lui, est déjà réellement généré — voir plus haut).

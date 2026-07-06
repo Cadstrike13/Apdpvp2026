@@ -1,3 +1,4 @@
+from django.db.models import Case, When, IntegerField
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse
 from django.urls import reverse
@@ -6,11 +7,31 @@ from .models import JobPosting, Candidate
 from .forms import JobPostingForm, CandidateForm
 
 
+def _candidats_tries(type_demande=""):
+    """Candidats triés par priorité (urgente d'abord) puis date."""
+    qs = Candidate.objects.select_related("offre")
+    if type_demande in ("emploi", "stage"):
+        qs = qs.filter(type_demande=type_demande)
+    return qs.annotate(
+        prio_ordre=Case(
+            When(priorite="urgente", then=0),
+            When(priorite="importante", then=1),
+            default=2,
+            output_field=IntegerField(),
+        )
+    ).order_by("prio_ordre", "-date_candidature")
+
+
 def recruitment_list(request):
+    type_demande = request.GET.get("type", "")
     context = {
         "offres": JobPosting.objects.select_related("departement").all(),
-        "candidats": Candidate.objects.select_related("offre").all(),
+        "candidats": _candidats_tries(type_demande),
+        "type_selected": type_demande,
+        "classement": [("", "Tous"), ("emploi", "Emploi"), ("stage", "Stage")],
     }
+    if request.htmx and request.GET.get("type") is not None:
+        return render(request, "recruitment/partials/candidats.html", context)
     template = "recruitment/partials/content.html" if request.htmx else "recruitment/list.html"
     return render(request, template, context)
 

@@ -17,7 +17,7 @@
   {{ formset.management_form }}
 
   <div class="flex flex-wrap gap-2 mb-6">
-    {% for form, ligne in lignes %}
+    {% for form, ligne, suggestion in lignes %}
     <button type="button"
             class="traitement-pastille w-9 h-9 rounded-full text-sm font-medium transition-colors
                    {% if forloop.first %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}"
@@ -27,7 +27,7 @@
     {% endfor %}
   </div>
 
-  {% for form, ligne in lignes %}
+  {% for form, ligne, suggestion in lignes %}
   <div class="traitement-card {% if not forloop.first %}hidden{% endif %} bg-white shadow-sm border border-gray-100 rounded-lg p-6 mb-4"
        data-traitement="{{ ligne.traitement }}">
     {{ form.id }}
@@ -38,6 +38,30 @@
 
     {% if form.errors %}
     <p class="erreurs-traitement text-red-600 text-xs mb-4">{{ form.errors }}</p>
+    {% endif %}
+
+    {% if suggestion.verdict %}
+    <div class="mb-4 p-3 rounded-md bg-gray-50 border border-gray-200 max-w-xl">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-medium text-gray-500">
+          Suggestion (aide à la décision, ne remplace pas le jugement du contrôleur)
+        </p>
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ suggestion.verdict_css_classes|default:'' }}">
+          {{ suggestion.verdict_label }} — {{ suggestion.pourcentage }}%
+        </span>
+      </div>
+      <ul class="text-xs text-gray-600 space-y-0.5 mb-2">
+        {% for critere in suggestion.details %}
+        <li>{% if critere.respecte %}✓{% else %}✗{% endif %} {{ critere.label }}</li>
+        {% endfor %}
+      </ul>
+      <button type="button"
+              class="reprendre-suggestion px-2 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-xs font-medium"
+              data-field-name="{{ form.evaluation.html_name }}"
+              data-verdict="{{ suggestion.verdict }}">
+        Reprendre la suggestion
+      </button>
+    </div>
     {% endif %}
 
     <div class="space-y-4 max-w-xl">
@@ -81,4 +105,16 @@
 {% block extra_js %}
 {% load static %}
 <script src="{% static 'js/questionnaire.js' %}"></script>
+<script>
+  document.querySelectorAll(".reprendre-suggestion").forEach(function (bouton) {
+    bouton.addEventListener("click", function () {
+      var champ = bouton.dataset.fieldName;
+      var verdict = bouton.dataset.verdict;
+      var radio = document.querySelector('input[name="' + champ + '"][value="' + verdict + '"]');
+      if (radio) {
+        radio.checked = true;
+      }
+    });
+  });
+</script>
 {% endblock %}

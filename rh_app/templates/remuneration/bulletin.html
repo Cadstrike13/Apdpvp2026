@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 2.5cm 2cm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 11pt; color: #1f2937; }
+  .entete { border-bottom: 2px solid #059669; padding-bottom: 8px; margin-bottom: 18px; }
+  .org { font-size: 14pt; font-weight: bold; color: #059669; }
+  .sous { font-size: 9pt; color: #6b7280; }
+  h1 { font-size: 15pt; text-align: center; text-transform: uppercase; margin: 20px 0; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+  td, th { padding: 5px 6px; font-size: 10pt; }
+  .lbl { color: #6b7280; }
+  .num { text-align: right; }
+  .ligne td { border-bottom: 1px solid #eee; }
+  .net { font-weight: bold; font-size: 12pt; color: #047857; border-top: 2px solid #059669; }
+  .pied { position: fixed; bottom: -1.5cm; left: 0; right: 0; text-align: center; font-size: 8pt; color: #9ca3af; }
+</style>
+</head>
+<body>
+  <div class="entete">
+    <div class="org">APDPVP</div>
+    <div class="sous">Direction des Ressources Humaines — Bulletin de paie (estimatif)</div>
+  </div>
+
+  <h1>Bulletin de paie</h1>
+
+  <table>
+    <tr><td class="lbl">Agent</td><td><strong>{{ employe.prenom }} {{ employe.nom }}</strong></td>
+        <td class="lbl">Matricule</td><td>{{ employe.matricule_apdpvp|default:"—" }}</td></tr>
+    <tr><td class="lbl">Poste</td><td>{{ employe.poste_principal|default:employe.poste }}</td>
+        <td class="lbl">Catégorie</td><td>{{ employe.categorie|default:"—" }}</td></tr>
+  </table>
+
+  <table>
+    <tr class="ligne"><td>Salaire de base</td><td class="num">{{ droits.base }}</td></tr>
+    <tr class="ligne"><td>Primes du mois</td><td class="num">{{ droits.total_primes }}</td></tr>
+    <tr class="ligne"><td><strong>Salaire brut</strong></td><td class="num"><strong>{{ droits.brut }}</strong></td></tr>
+    {% for c in droits.cotisations %}
+    <tr class="ligne"><td>Cotisation {{ c.libelle }} ({{ c.taux }}%)</td><td class="num">-{{ c.montant }}</td></tr>
+    {% endfor %}
+    <tr class="ligne"><td>Avances non remboursées</td><td class="num">-{{ droits.total_avances }}</td></tr>
+    <tr class="net"><td>NET À PAYER (estimé)</td><td class="num">{{ droits.net }}</td></tr>
+  </table>
+
+  <div class="pied">Document estimatif généré par APDPVP RH — taux de cotisation configurables.</div>
+</body>
+</html>

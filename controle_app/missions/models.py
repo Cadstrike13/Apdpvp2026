@@ -313,6 +313,53 @@ class EvaluationConformite(models.TextChoices):
     CPR = "cpr", "Constatation préoccupante"
 
 
+COULEURS_VERDICT = {
+    EvaluationConformite.CTO: "bg-green-100 text-green-800",
+    EvaluationConformite.CPA: "bg-blue-100 text-blue-800",
+    EvaluationConformite.NC: "bg-amber-100 text-amber-800",
+    EvaluationConformite.CPR: "bg-red-100 text-red-800",
+}
+
+
+def _sous_traitance_declaree_applicable(reponse):
+    return (reponse.page2.nombre_sous_traitants or 0) > 0
+
+
+# Checklist utilisée pour SUGGÉRER un verdict (jamais l'imposer — le
+# contrôleur reste responsable de la saisie finale, voir evaluation_page).
+# Ne couvre que les champs qui sont de vrais signaux de conformité ; les
+# champs purement descriptifs (catégories de données, moyen de transmission,
+# type d'objet géolocalisé...) ne sont volontairement pas notés.
+CRITERES_CONFORMITE = [
+    {"label": "Déclaration effectuée", "test": lambda r: r.page1.declaration_effectuee},
+    {"label": "Droits des personnes respectés", "test": lambda r: r.page1.droits_respectes},
+    {
+        "label": "Contrat de sous-traitance en place",
+        "applicable": _sous_traitance_declaree_applicable,
+        "test": lambda r: r.page2.contrat_sous_traitance,
+    },
+    {
+        "label": "Sous-traitant(s) déclaré(s)",
+        "applicable": _sous_traitance_declaree_applicable,
+        "test": lambda r: r.page2.sous_traitants_declares,
+    },
+    {
+        "label": "Listing des caméras disponible",
+        "traitements": {"f", "g"},
+        "test": lambda r: r.page2.listing_cameras_disponible,
+    },
+    {"label": "Mesures organisationnelles documentées", "test": lambda r: _est_rempli(r.page5.mesures_organisationnelles)},
+    {"label": "Mesures techniques documentées", "test": lambda r: _est_rempli(r.page5.mesures_techniques)},
+    {"label": "Personnes habilitées identifiées", "test": lambda r: _est_rempli(r.page4.personnes_habilitees_noms)},
+    {"label": "Durée de conservation définie", "test": lambda r: _est_rempli(r.page3.duree_conservation)},
+    {
+        "label": "Autorité de protection du pays destinataire documentée",
+        "traitements": {"h"},
+        "test": lambda r: _est_rempli(r.page4.autorite_protection_pays),
+    },
+]
+
+
 class ReponseTraitement(models.Model):
     """Ligne pivot (mission, traitement) — créée automatiquement à la
     création de la mission, voir missions/signals.py."""
@@ -371,6 +418,47 @@ class ReponseTraitement(models.Model):
             return 0
         return round(remplis * 100 / total)
 
+    def suggestion_verdict(self):
+        """Suggestion de verdict de conformité à partir d'une checklist de
+        signaux concrets (CRITERES_CONFORMITE) — jamais appliquée
+        automatiquement, seulement affichée pour aide à la décision sur la
+        page Évaluation. Le contrôleur saisit le verdict final lui-même."""
+        details = []
+        total = 0
+        respectes = 0
+        for critere in CRITERES_CONFORMITE:
+            traitements = critere.get("traitements")
+            if traitements is not None and self.traitement not in traitements:
+                continue
+            applicable = critere.get("applicable")
+            if applicable is not None and not applicable(self):
+                continue
+            total += 1
+            ok = bool(critere["test"](self))
+            respectes += ok
+            details.append({"label": critere["label"], "respecte": ok})
+
+        if total == 0:
+            return {"verdict": None, "verdict_label": None, "pourcentage": None, "details": details}
+
+        pourcentage = round(respectes * 100 / total)
+        if pourcentage == 100:
+            verdict = EvaluationConformite.CTO
+        elif pourcentage >= 70:
+            verdict = EvaluationConformite.CPA
+        elif pourcentage >= 40:
+            verdict = EvaluationConformite.NC
+        else:
+            verdict = EvaluationConformite.CPR
+
+        return {
+            "verdict": verdict,
+            "verdict_label": EvaluationConformite(verdict).label,
+            "verdict_css_classes": COULEURS_VERDICT.get(verdict, ""),
+            "pourcentage": pourcentage,
+            "details": details,
+        }
+
 
 class ReponsePageMixin(models.Model):
     """Pattern de verrouillage commun aux 5 pages du questionnaire —
@@ -380,7 +468,12 @@ class ReponsePageMixin(models.Model):
         abstract = True
 
     def clean(self):
-        if self.reponse.est_verrouille:
+        # self.reponse_id peut être vide pour un formulaire "extra" fabriqué
+        # par un formset dont le TOTAL_FORMS dépasse le nombre de lignes
+        # réelles (ex. management form trafiqué côté client) — dans ce cas
+        # il n'y a pas de mission à verrouiller, on laisse les autres
+        # validations du formulaire s'appliquer normalement.
+        if self.reponse_id and self.reponse.est_verrouille:
             raise ValidationError("Mission verrouillée après génération du rapport.")
 
     def save(self, *args, **kwargs):
@@ -388,7 +481,7 @@ class ReponsePageMixin(models.Model):
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.reponse.est_verrouille:
+        if self.reponse_id and self.reponse.est_verrouille:
             raise ValidationError("Impossible de supprimer : mission verrouillée.")
         super().delete(*args, **kwargs)
 

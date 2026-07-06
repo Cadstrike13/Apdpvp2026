@@ -1,4 +1,6 @@
+import os
 import tempfile
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
@@ -160,6 +162,16 @@ class DashboardViewsTests(TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertEqual(mission.personnes_interrogees.count(), 0)
 
+    def test_personne_ajouter_refuse_si_mission_verrouillee(self):
+        mission = creer_mission()
+        mission.statut = StatutMission.PV_GENERE
+        mission.save()
+        personne = Personne.objects.create(nom="Test", prenom="Personne")
+
+        r = self.client.post(reverse("missions:personne_ajouter", args=[mission.pk]), {"personne": personne.pk})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(mission.personnes_interrogees.count(), 0)
+
     def test_observations_modifier(self):
         mission = creer_mission()
         r = self.client.post(reverse("missions:observations_modifier", args=[mission.pk]), {
@@ -168,6 +180,41 @@ class DashboardViewsTests(TestCase):
         self.assertEqual(r.status_code, 302)
         mission.refresh_from_db()
         self.assertEqual(mission.commentaires_observations, "RAS")
+
+    def test_mission_create_get_affiche_formulaire(self):
+        r = self.client.get(reverse("missions:mission_create"))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("form", r.context)
+
+    def test_membre_ajouter_formulaire_invalide(self):
+        mission = creer_mission()
+        r = self.client.post(reverse("missions:membre_ajouter", args=[mission.pk]), {"role": RoleMission.CHEF})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(mission.membres_groupe.count(), 0)
+
+    def test_personne_ajouter_reprend_fonction_existante(self):
+        from personnes.models import Fonction, Personne
+
+        mission = creer_mission()
+        personne = Personne.objects.create(nom="Ndong", prenom="Paul")
+        Fonction.objects.create(
+            personne=personne, entite=mission.entite_controlee, poste="DAF", service="Finance",
+        )
+
+        r = self.client.post(reverse("missions:personne_ajouter", args=[mission.pk]), {"personne": personne.pk})
+        self.assertEqual(r.status_code, 302)
+        interrogee = mission.personnes_interrogees.get()
+        self.assertEqual(interrogee.poste_snapshot, "DAF")
+        self.assertEqual(interrogee.service_snapshot, "Finance")
+
+    def test_infos_pv_modifier_formulaire_invalide(self):
+        mission = creer_mission()
+        r = self.client.post(reverse("missions:infos_pv_modifier", args=[mission.pk]), {
+            "date_signature": "date-invalide",
+        })
+        self.assertEqual(r.status_code, 302)
+        mission.refresh_from_db()
+        self.assertIsNone(mission.date_signature)
 
 
 class QuestionnaireFlowTests(TestCase):
@@ -187,6 +234,21 @@ class QuestionnaireFlowTests(TestCase):
             list(self.mission.journal.values_list("type_action", flat=True)),
             ["questionnaire_complete"],
         )
+
+    def test_page_inconnue_renvoie_404(self):
+        r = self.client.get(reverse("missions:questionnaire_page", args=[self.mission.pk, 6]))
+        self.assertEqual(r.status_code, 404)
+
+    def test_formulaire_invalide_naffiche_pas_de_redirection(self):
+        r = self.client.get(reverse("missions:questionnaire_page", args=[self.mission.pk, 1]))
+        formset = r.context["formset"]
+        data = {f"form-{k}": v for k, v in formset.management_form.initial.items()}
+        # TOTAL_FORMS cassé -> formset.is_valid() est False sans même regarder les données des lignes.
+        data["form-TOTAL_FORMS"] = "999"
+        r = self.client.post(reverse("missions:questionnaire_page", args=[self.mission.pk, 1]), data)
+        self.assertEqual(r.status_code, 200)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.BROUILLON)
 
 
 @override_settings(MEDIA_ROOT=MEDIA_ROOT_TEST)
@@ -292,6 +354,79 @@ class ClotureMissionTests(TestCase):
         self.mission.refresh_from_db()
         self.assertEqual(self.mission.statut, StatutMission.PV_SCAN_UPLOAD)
 
+    def test_pv_marquer_genere_refuse_si_deja_genere(self):
+        self.mission.statut = StatutMission.PV_GENERE
+        self.mission.save()
+
+        r = self.client.post(reverse("missions:pv_marquer_genere", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.PV_GENERE)
+
+    def test_rapport_marquer_genere_refuse_si_deja_genere(self):
+        self.mission.statut = StatutMission.RAPPORT_GENERE
+        self.mission.save()
+
+        r = self.client.post(reverse("missions:rapport_marquer_genere", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.RAPPORT_GENERE)
+
+    def test_scan_uploader_refuse_avant_pv_genere(self):
+        scan = SimpleUploadedFile("scan.pdf", b"%PDF-1.4", content_type="application/pdf")
+        r = self.client.post(reverse("missions:scan_uploader", args=[self.mission.pk]), {"scan_signe": scan})
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.BROUILLON)
+        self.assertFalse(self.mission.scan_signe)
+
+    def test_rapport_uploader_refuse_avant_rapport_genere(self):
+        self.mission.statut = StatutMission.PV_SCAN_UPLOAD
+        self.mission.save()
+
+        rapport = SimpleUploadedFile("rapport.pdf", b"%PDF-1.4", content_type="application/pdf")
+        r = self.client.post(
+            reverse("missions:rapport_uploader", args=[self.mission.pk]), {"rapport_signe": rapport}
+        )
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.PV_SCAN_UPLOAD)
+        self.assertFalse(self.mission.rapport_signe)
+
+    @patch("missions.views.generate_pv")
+    def test_pv_marquer_genere_echec_generation_affiche_message_et_ne_verrouille_pas(self, mock_generate_pv):
+        mock_generate_pv.side_effect = RuntimeError("boom")
+        self.mission.statut = StatutMission.QUESTIONNAIRE_COMPLETE
+        self.mission.save()
+
+        r = self.client.post(reverse("missions:pv_marquer_genere", args=[self.mission.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.QUESTIONNAIRE_COMPLETE)
+        self.assertFalse(self.mission.est_verrouillee)
+        self.assertFalse(self.mission.pv_document)
+
+    @patch("missions.views.generate_pv")
+    def test_pv_marquer_genere_sauvegarde_le_pdf_si_disponible(self, mock_generate_pv):
+        with tempfile.TemporaryDirectory() as dossier:
+            chemin_docx = os.path.join(dossier, "pv.docx")
+            chemin_pdf = os.path.join(dossier, "pv.pdf")
+            with open(chemin_docx, "wb") as f:
+                f.write(b"docx factice")
+            with open(chemin_pdf, "wb") as f:
+                f.write(b"%PDF-1.4 factice")
+            mock_generate_pv.return_value = {"docx": chemin_docx, "pdf": chemin_pdf}
+
+            self.mission.statut = StatutMission.QUESTIONNAIRE_COMPLETE
+            self.mission.save()
+            r = self.client.post(reverse("missions:pv_marquer_genere", args=[self.mission.pk]))
+
+        self.assertEqual(r.status_code, 302)
+        self.mission.refresh_from_db()
+        self.assertEqual(self.mission.statut, StatutMission.PV_GENERE)
+        self.assertTrue(self.mission.pv_document.name)
+        self.assertTrue(self.mission.pv_document_pdf.name)
+
 
 @override_settings(MEDIA_ROOT=MEDIA_ROOT_TEST)
 class EvaluationEtInfosPVTests(TestCase):
@@ -327,6 +462,21 @@ class EvaluationEtInfosPVTests(TestCase):
         reponse_a = self.mission.reponses.get(traitement="a")
         self.assertEqual(reponse_a.evaluation, EvaluationConformite.CTO)
         self.assertEqual(reponse_a.observations_controleur, "RAS.")
+
+    def test_evaluation_formulaire_invalide(self):
+        r = self.client.get(reverse("missions:evaluation_page", args=[self.mission.pk]))
+        formset = r.context["formset"]
+        data = {f"form-{k}": v for k, v in formset.management_form.initial.items()}
+        for i, form in enumerate(formset.forms):
+            data[f"form-{i}-id"] = form.instance.pk
+            data[f"form-{i}-observations_controleur"] = ""
+            data[f"form-{i}-observations_entite"] = ""
+        data["form-0-evaluation"] = "verdict-invalide"
+
+        r = self.client.post(reverse("missions:evaluation_page", args=[self.mission.pk]), data)
+        self.assertEqual(r.status_code, 200)
+        reponse_a = self.mission.reponses.get(traitement="a")
+        self.assertEqual(reponse_a.evaluation, "")
 
     def test_evaluation_impossible_si_mission_verrouillee(self):
         self.mission.statut = StatutMission.PV_GENERE

@@ -114,6 +114,12 @@ HTMX du questionnaire, ou l'analyse de conformité par traitement.
 (SoftDeleteMixin, permissions, signaux de verrouillage, managers, formsets).
 Ne pas réinventer ces patterns — les reproduire.
 
+### Suggestion de conformité — `calcul_conformite.md`
+**À lire quand :** modification de `CRITERES_CONFORMITE`/des seuils dans
+`missions/models.py`, ou implémentation d'un vrai calcul de conformité
+automatique. Explique la checklist, les seuils CTO/CPA/NC/CPR et pourquoi
+certains champs du questionnaire ne sont volontairement pas notés.
+
 ## Tâches en attente
 
 Voir `AVANCEMENT.md` pour le détail à jour de ce qui est fait/pas fait.
@@ -129,10 +135,14 @@ Voir `AVANCEMENT.md` pour le détail à jour de ce qui est fait/pas fait.
       attente) + son parseur. `rapport_marquer_genere` (vue chef) ne fait
       encore que changer le statut sans document généré — étape provisoire
       à remplacer.
-- [ ] **Règles de calcul de conformité automatique** par traitement (a→j) à
-      partir des réponses `ReponsePage1..5` — pour l'instant le verdict
-      (CTO/CPA/NC/CPR) est saisi manuellement par le contrôleur, pas déduit
-      des réponses au questionnaire.
+- [x] **Suggestion de conformité** par traitement (a→j) —
+      `ReponseTraitement.suggestion_verdict()` calcule un verdict indicatif
+      (CTO/CPA/NC/CPR, seuils 100/70/40 %) à partir d'une checklist de
+      champs signifiants (`CRITERES_CONFORMITE`), affiché sur la page
+      Évaluation avec bouton « Reprendre la suggestion ». Le contrôleur
+      reste seul responsable du verdict final saisi — jamais appliqué
+      automatiquement. Checklist et seuils à ajuster si besoin (voir
+      `AVANCEMENT.md`).
 - [ ] Spécification de l'API agents en production (`ApiAgentProvider`) : URL,
       authentification, format JSON réel — `AGENTS_SOURCE=mock` reste actif
       par défaut

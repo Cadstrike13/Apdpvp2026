@@ -11,11 +11,14 @@ AUDIT_EXCLUDE_FIELDS = {"created_at", "updated_at", "deleted_at"}
 # Modèles audités (créations / modifications / suppressions)
 AUDITED_MODELS = [
     "employees.Department", "employees.Employee",
+    "employees.Diplome", "employees.Contrat", "employees.Affectation", "employees.Evaluation",
     "leaves.LeaveRequest",
     "recruitment.JobPosting", "recruitment.Candidate",
     "training.TrainingProgram",
     "documents.Document",
     "actes.ActeAdministratif",
+    "carriere.Avancement",
+    "remuneration.Salaire", "remuneration.Prime", "remuneration.AvanceSalaire",
 ]
 
 

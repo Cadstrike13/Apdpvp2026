@@ -217,7 +217,7 @@ def evaluation_page(request, mission_pk):
     observations par traitement — saisi après le questionnaire, avant la
     génération du procès-verbal. Alimente le tableau 3 du PV."""
     mission = request.mission
-    queryset = mission.reponses.order_by("traitement")
+    queryset = mission.reponses.select_related("page1", "page2", "page3", "page4", "page5").order_by("traitement")
 
     if request.method == "POST":
         formset = EvaluationFormSet(request.POST, queryset=queryset)
@@ -229,13 +229,15 @@ def evaluation_page(request, mission_pk):
     else:
         formset = EvaluationFormSet(queryset=queryset)
 
+    lignes = [(form, reponse, reponse.suggestion_verdict()) for form, reponse in zip(formset.forms, queryset)]
+
     return render(
         request,
         "missions/evaluation.html",
         {
             "mission": mission,
             "formset": formset,
-            "lignes": list(zip(formset.forms, queryset)),
+            "lignes": lignes,
         },
     )
 

@@ -27,6 +27,8 @@ TYPE_ACTE_CHOICES = [
         ("attestation_travail", "Attestation / certificat de travail"),
         ("attestation_emploi", "Attestation d'emploi"),
         ("presence", "Attestation de présence"),
+        ("attestation_conge", "Attestation de congé"),
+        ("attestation_stage", "Attestation de stage"),
         ("attestation_salaire", "Attestation de salaire"),
         ("attestation_anciennete", "Attestation d'ancienneté"),
         ("attestation_fonction", "Attestation de fonction"),

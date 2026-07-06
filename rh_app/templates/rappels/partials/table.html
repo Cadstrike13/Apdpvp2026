@@ -1,0 +1,42 @@
+<table class="w-full text-sm">
+  <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+    <tr>
+      <th class="px-4 py-3 text-left">Échéance</th>
+      <th class="px-4 py-3 text-left">Dans</th>
+      <th class="px-4 py-3 text-left">Type</th>
+      <th class="px-4 py-3 text-left">Objet</th>
+      <th class="px-4 py-3 text-left">Niveau</th>
+      <th class="px-4 py-3 text-left">Action</th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-gray-100">
+    {% for r in rappels %}
+    <tr id="rappel-row-{{ r.pk }}" class="hover:bg-gray-50 {% if r.traite %}opacity-60{% endif %}">
+      <td class="px-4 py-3 whitespace-nowrap">{{ r.date_echeance|date:"d/m/Y" }}</td>
+      <td class="px-4 py-3 text-gray-500">{{ r.jours_restants }} j</td>
+      <td class="px-4 py-3">{{ r.get_type_rappel_display }}</td>
+      <td class="px-4 py-3">
+        <span>{{ r.objet }}</span>
+        {% if r.message %}<span class="block text-xs text-gray-400">{{ r.message }}</span>{% endif %}
+      </td>
+      <td class="px-4 py-3">
+        <span class="px-2 py-1 rounded-full text-xs
+          {% if r.niveau == 'urgent' %}bg-red-100 text-red-700
+          {% elif r.niveau == 'important' %}bg-orange-100 text-orange-700
+          {% else %}bg-blue-100 text-blue-700{% endif %}">{{ r.get_niveau_display }}</span>
+      </td>
+      <td class="px-4 py-3">
+        {% if r.traite %}
+        <span class="text-emerald-600 text-xs">Traité</span>
+        {% else %}
+        <button hx-post="{% url 'rappels:traiter' r.pk %}"
+                hx-target="#rappel-row-{{ r.pk }}" hx-swap="outerHTML"
+                class="text-emerald-600 hover:underline text-xs">Marquer traité</button>
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="text-center py-8 text-gray-400">Aucun rappel.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

@@ -59,6 +59,9 @@ INSTALLED_APPS = [
     'training',
     'documents',
     'actes',
+    'carriere',
+    'rappels',
+    'remuneration',
 ]
 
 MIDDLEWARE = [

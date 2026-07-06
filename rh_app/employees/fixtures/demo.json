@@ -65,10 +65,10 @@
       "offre": 1, "nom": "Sylvie Ekomy", "email": "sylvie.ekomy@mail.ga",
       "date_candidature": "2026-05-22", "statut": "examen", "note": 3, "cv": "" } },
   { "model": "recruitment.candidate", "pk": 3, "fields": {
-      "offre": 1, "nom": "David Nguema", "email": "david.nguema@mail.ga",
+      "offre": 1, "type_demande": "emploi", "priorite": "urgente", "nom": "David Nguema", "email": "david.nguema@mail.ga",
       "date_candidature": "2026-06-02", "statut": "offre", "note": 5, "cv": "" } },
   { "model": "recruitment.candidate", "pk": 4, "fields": {
-      "offre": 2, "nom": "Fatima Mintsa", "email": "fatima.mintsa@mail.ga",
+      "offre": 2, "type_demande": "stage", "priorite": "importante", "nom": "Fatima Mintsa", "email": "fatima.mintsa@mail.ga",
       "date_candidature": "2026-06-05", "statut": "examen", "note": 4, "cv": "" } },
   { "model": "recruitment.candidate", "pk": 5, "fields": {
       "offre": 3, "nom": "Joseph Bekale", "email": "joseph.bekale@mail.ga",

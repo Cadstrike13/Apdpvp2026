@@ -100,11 +100,21 @@ python manage.py init_roles            # créer rôles + permissions
 python manage.py seed_users            # comptes de démo (mdp : apdpvp2026)
 python manage.py seed_referentiels     # catégories pro, statuts agent, postes, types de contrat
 python manage.py seed_agents_details   # enrichit les agents démo (matricules, contrats, diplômes...)
+python manage.py seed_remuneration     # taux CNSS/CNAMGS + salaire de base par agent
+python manage.py generer_rappels       # génère les rappels J-30 (à planifier quotidiennement)
 python manage.py backfill_references   # référencer les actes sans référence
 ```
 
 Séquence complète de (re)construction de la démo :
-`flush` → `loaddata demo` → `init_roles` → `seed_users` → `seed_referentiels` → `seed_agents_details`.
+`flush` → `loaddata demo` → `init_roles` → `seed_users` → `seed_referentiels` →
+`seed_agents_details` → `seed_remuneration` → `generer_rappels`.
+
+## Modules récents (spec « Infos RH »)
+
+- **Actes** : ajout `attestation_conge` et `attestation_stage`.
+- **Carrière** (`carriere`) : évaluations + avancements (met à jour la catégorie de l'agent) + génération de **fiches de poste PDF**.
+- **Rappels** (`rappels`) : moteur J-30 (`generer_rappels`) — anniversaires, anniversaires de service, fins de contrat, congés à venir, avancements à examiner ; badge de navigation + bandeau d'alertes sur le dashboard ; idempotent.
+- **Rémunérations** (`remuneration`, réservé admin/directeur/chef de service) : historique des salaires, primes, avances, taux de cotisation (CNSS/CNAMGS), **calcul des droits** (brut → cotisations → net) + **bulletin de paie PDF**.
 
 Comptes de démo : `admin` (superuser), `directeur`, `chef.rh`, `agent.rh1`, `agent.rh2`, `usager1` (mot de passe `apdpvp2026`).
 

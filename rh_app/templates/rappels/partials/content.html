@@ -1,0 +1,14 @@
+<div class="flex justify-between items-center mb-6">
+  <h2 class="text-2xl font-bold">Rappels &amp; échéances</h2>
+  <label class="flex items-center gap-2 text-sm text-gray-500">
+    <input type="checkbox" name="traites" value="1" {% if afficher_traites %}checked{% endif %}
+           hx-get="{% url 'rappels:list' %}" hx-target="#rappels-table" hx-swap="innerHTML"
+           hx-trigger="change" {% if not afficher_traites %}hx-vals='{"traites":"1"}'{% else %}hx-vals='{"traites":"0"}'{% endif %}>
+    Afficher les rappels traités
+  </label>
+</div>
+
+<div id="rappels-table" class="bg-white rounded-xl shadow-sm overflow-hidden">
+  {% include "rappels/partials/table.html" %}
+</div>
+<p class="text-xs text-gray-400 mt-2">Généré par <code>python manage.py generer_rappels</code> (à planifier quotidiennement).</p>

@@ -125,17 +125,19 @@ Nomenclature actuelle : 14 catégories / 105 types. Couverture des actes attendu
 | Domaine | Couverture |
 |---|---|
 | Socle (auth, rôles, audit, soft delete, JWT, actes + PDF) | ✅ solide |
-| Données Agent (spec complète) | ⚠️ ~30 % (refonte à faire) |
-| Actes | ✅ ~90 % (2 types à ajouter) |
-| Rappels / notifications | ❌ |
-| Recrutement (stage/emploi + priorité) | ⚠️ |
-| Rémunérations | ❌ |
-| Carrière (évaluations, avancements, fiches de poste) | ❌ |
+| Données Agent (spec complète) | ✅ refonte réalisée |
+| Actes | ✅ complet (attestation_conge + attestation_stage ajoutés) |
+| Rappels / notifications | ✅ moteur J-30 + dashboard |
+| Rémunérations | ✅ salaires/primes/avances/cotisations + calcul des droits + bulletin PDF |
+| Carrière (évaluations, avancements, fiches de poste) | ✅ + fiche de poste PDF |
+| Recrutement (stage/emploi + priorité) | ✅ type de demande, priorité, classement, candidature spontanée |
 
-### Ordre d'implémentation recommandé
-1. **Refonte du modèle Agent** + modèles de référence (fondation de tout le reste).
-2. Actes manquants (rapide).
-3. Carrière (évaluations, avancements, fiches de poste).
-4. Moteur de rappels (J-21/J-30).
-5. Rémunérations.
-6. Recrutement (priorité + type de demande).
+### Ordre d'implémentation
+1. ✅ Refonte du modèle Agent + modèles de référence.
+2. ✅ Actes manquants.
+3. ✅ Carrière (évaluations, avancements, fiches de poste).
+4. ✅ Moteur de rappels (J-30).
+5. ✅ Rémunérations.
+6. ✅ Recrutement (priorité + type de demande + classement + candidature spontanée).
+
+**Toutes les briques de la spec « Infos RH » sont implémentées.**

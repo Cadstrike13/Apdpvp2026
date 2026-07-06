@@ -12,7 +12,8 @@
        class="flex items-center gap-3 px-4 py-2 rounded-lg
               {% if request.path == item.url %}bg-emerald-50 text-emerald-600 font-semibold{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
       <i data-lucide="{{ item.icon }}" class="w-5 h-5"></i>
-      {{ item.label }}
+      <span class="flex-1">{{ item.label }}</span>
+      {% if item.badge %}<span class="text-xs bg-red-500 text-white rounded-full px-2 py-0.5">{{ item.badge }}</span>{% endif %}
     </a>
     {% endfor %}
   </nav>

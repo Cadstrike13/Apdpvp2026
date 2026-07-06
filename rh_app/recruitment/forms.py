@@ -16,4 +16,5 @@ class JobPostingForm(forms.ModelForm):
 class CandidateForm(forms.ModelForm):
     class Meta:
         model = Candidate
-        fields = ["offre", "nom", "email", "statut", "note", "cv"]
+        fields = ["type_demande", "priorite", "offre", "nom", "email", "telephone",
+                  "statut", "note", "cv", "lettre_motivation"]

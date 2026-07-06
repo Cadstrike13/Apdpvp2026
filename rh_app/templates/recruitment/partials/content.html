@@ -35,34 +35,28 @@
     </ul>
   </div>
 
-  <!-- Candidats -->
+  <!-- Candidats / dossiers -->
   <div class="bg-white rounded-xl shadow-sm p-6">
     <div class="flex justify-between items-center mb-4">
-      <h3 class="font-semibold">Candidats</h3>
+      <h3 class="font-semibold">Dossiers de candidature</h3>
       <a href="{% url 'recruitment:candidate_create' %}"
          hx-get="{% url 'recruitment:candidate_create' %}" hx-target="#main-content" hx-push-url="true"
          class="text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700">+ Candidat</a>
     </div>
-    <ul class="divide-y divide-gray-100">
-      {% for c in candidats %}
-      <li id="candidate-row-{{ c.pk }}" class="py-3">
-        <div class="flex justify-between items-start">
-          <span class="text-sm">{{ c.nom }} <span class="text-gray-400">— {{ c.offre.titre }}</span></span>
-          <span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">{{ c.get_statut_display }}</span>
-        </div>
-        <div class="flex gap-3 mt-2 text-xs">
-          <a href="{% url 'recruitment:candidate_update' c.pk %}"
-             hx-get="{% url 'recruitment:candidate_update' c.pk %}" hx-target="#main-content" hx-push-url="true"
-             class="text-amber-500 hover:underline">Modifier</a>
-          <button hx-delete="{% url 'recruitment:candidate_delete' c.pk %}"
-                  hx-target="#candidate-row-{{ c.pk }}" hx-swap="outerHTML"
-                  hx-confirm="Supprimer ce candidat ?"
-                  class="text-red-500 hover:underline">Supprimer</button>
-        </div>
-      </li>
-      {% empty %}
-      <li class="py-3 text-gray-400 text-sm">Aucun candidat.</li>
+
+    <!-- Onglets de classement -->
+    <div class="flex gap-2 mb-3 text-sm">
+      {% for val, lib in classement %}
+      <button hx-get="{% url 'recruitment:list' %}?type={{ val }}"
+              hx-target="#candidats-liste" hx-swap="innerHTML"
+              class="px-3 py-1 rounded-full border {% if type_selected == val %}bg-emerald-600 text-white border-emerald-600{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+        {{ lib }}
+      </button>
       {% endfor %}
-    </ul>
+    </div>
+
+    <div id="candidats-liste">
+      {% include "recruitment/partials/candidats.html" %}
+    </div>
   </div>
 </div>

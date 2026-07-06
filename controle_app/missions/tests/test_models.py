@@ -7,10 +7,12 @@ from entites.models import EntiteControlee
 from personnes.models import Personne
 
 from ..models import (
+    EvaluationConformite,
     JournalAction,
     MembreGroupeControle,
     MissionControle,
     PersonneInterrogee,
+    ReponsePage1,
     RoleMission,
     StatutMission,
     Traitement,
@@ -92,6 +94,23 @@ class VerrouillagePostGenerationTests(TestCase):
         self.mission.refresh_from_db()
         self.assertEqual(self.mission.commentaires_observations, "toujours modifiable")
 
+    def test_entite_controlee_id_sous_forme_de_chaine_ne_declenche_pas_le_verrou(self):
+        """entite_controlee_id peut être une chaîne avant le premier
+        full_clean() (ex. valeur brute reçue d'un formulaire) — comparée à
+        la même valeur en base, ça ne doit pas être vu comme une modification."""
+        self.mission.statut = StatutMission.PV_GENERE
+        self.mission.save()
+
+        self.mission.entite_controlee_id = str(self.mission.entite_controlee_id)
+        self.mission.save()  # ne doit pas lever
+
+    def test_date_mission_identique_ne_declenche_pas_le_verrou(self):
+        self.mission.statut = StatutMission.PV_GENERE
+        self.mission.save()
+
+        self.mission.date_mission = self.mission.date_mission  # même valeur
+        self.mission.save()  # ne doit pas lever
+
 
 class MembreGroupeControleTests(TestCase):
     def setUp(self):
@@ -126,6 +145,11 @@ class MembreGroupeControleTests(TestCase):
         with self.assertRaises(ValidationError):
             membre.delete()
 
+    def test_suppression_reussie_si_mission_non_verrouillee(self):
+        membre = MembreGroupeControle.objects.create(mission=self.mission, agent=self.agent1, role=RoleMission.AGENT)
+        membre.delete()
+        self.assertEqual(self.mission.membres_groupe.count(), 0)
+
 
 class PersonneInterrogeeTests(TestCase):
     def setUp(self):
@@ -147,6 +171,11 @@ class PersonneInterrogeeTests(TestCase):
         with self.assertRaises(ValidationError):
             pi.delete()
 
+    def test_suppression_reussie_si_mission_non_verrouillee(self):
+        pi = PersonneInterrogee.objects.create(mission=self.mission, personne=self.personne)
+        pi.delete()
+        self.assertEqual(self.mission.personnes_interrogees.count(), 0)
+
 
 class ReponsePageVerrouillageTests(TestCase):
     def setUp(self):
@@ -167,6 +196,10 @@ class ReponsePageVerrouillageTests(TestCase):
 
         with self.assertRaises(ValidationError):
             self.reponse.page1.delete()
+
+    def test_suppression_reussie_si_mission_non_verrouillee(self):
+        self.reponse.page1.delete()
+        self.assertFalse(ReponsePage1.objects.filter(reponse=self.reponse).exists())
 
 
 class PourcentageCompleteTests(TestCase):
@@ -192,6 +225,93 @@ class PourcentageCompleteTests(TestCase):
 
         self.assertGreater(reponse_j.pourcentage_complete, 0)
         self.assertEqual(reponse_a.pourcentage_complete, 0)
+
+
+class SuggestionVerdictTests(TestCase):
+    def setUp(self):
+        self.mission = creer_mission()
+        self.reponse_a = self.mission.reponses.get(traitement=Traitement.GESTION_PERSONNEL)
+
+    def test_aucun_critere_rempli_suggere_constatation_preoccupante(self):
+        suggestion = self.reponse_a.suggestion_verdict()
+        self.assertEqual(suggestion["verdict"], EvaluationConformite.CPR)
+        self.assertEqual(suggestion["pourcentage"], 0)
+
+    def test_tous_les_criteres_remplis_suggere_conformite_totale(self):
+        page1 = self.reponse_a.page1
+        page1.declaration_effectuee = True
+        page1.droits_respectes = True
+        page1.save()
+
+        page3 = self.reponse_a.page3
+        page3.duree_conservation = "5 ans"
+        page3.save()
+
+        page4 = self.reponse_a.page4
+        page4.personnes_habilitees_noms = "M. Test"
+        page4.save()
+
+        page5 = self.reponse_a.page5
+        page5.mesures_organisationnelles = "Politique interne"
+        page5.mesures_techniques = "Chiffrement"
+        page5.save()
+
+        suggestion = self.reponse_a.suggestion_verdict()
+        self.assertEqual(suggestion["verdict"], EvaluationConformite.CTO)
+        self.assertEqual(suggestion["pourcentage"], 100)
+
+    def test_criteres_sous_traitance_ignores_si_aucun_sous_traitant(self):
+        # nombre_sous_traitants n'est pas renseigné -> les 2 critères de
+        # sous-traitance ne doivent pas compter dans le total.
+        labels = [c["label"] for c in self.reponse_a.suggestion_verdict()["details"]]
+        self.assertNotIn("Contrat de sous-traitance en place", labels)
+        self.assertNotIn("Sous-traitant(s) déclaré(s)", labels)
+
+    def test_criteres_sous_traitance_comptes_si_sous_traitants_declares(self):
+        page2 = self.reponse_a.page2
+        page2.nombre_sous_traitants = 2
+        page2.contrat_sous_traitance = True
+        page2.sous_traitants_declares = True
+        page2.save()
+
+        labels = [c["label"] for c in self.reponse_a.suggestion_verdict()["details"]]
+        self.assertIn("Contrat de sous-traitance en place", labels)
+        self.assertIn("Sous-traitant(s) déclaré(s)", labels)
+
+    def test_critere_listing_cameras_uniquement_pour_f_et_g(self):
+        reponse_f = self.mission.reponses.get(traitement=Traitement.TELE_VIDEOSURVEILLANCE)
+        labels_f = [c["label"] for c in reponse_f.suggestion_verdict()["details"]]
+        labels_a = [c["label"] for c in self.reponse_a.suggestion_verdict()["details"]]
+        self.assertIn("Listing des caméras disponible", labels_f)
+        self.assertNotIn("Listing des caméras disponible", labels_a)
+
+    def test_critere_autorite_protection_uniquement_pour_h(self):
+        reponse_h = self.mission.reponses.get(traitement=Traitement.TRANSFERT_DONNEES)
+        labels_h = [c["label"] for c in reponse_h.suggestion_verdict()["details"]]
+        labels_a = [c["label"] for c in self.reponse_a.suggestion_verdict()["details"]]
+        self.assertIn("Autorité de protection du pays destinataire documentée", labels_h)
+        self.assertNotIn("Autorité de protection du pays destinataire documentée", labels_a)
+
+    def test_verdicts_intermediaires(self):
+        # 6 critères applicables pour "a" (déclaration, droits, mesures x2,
+        # personnes habilitées, durée) — 2/6 = 33% -> CPR ; 4/6 = 67% -> NC.
+        page1 = self.reponse_a.page1
+        page1.declaration_effectuee = True
+        page1.droits_respectes = True
+        page1.save()
+        self.assertEqual(self.reponse_a.suggestion_verdict()["verdict"], EvaluationConformite.CPR)
+
+        page5 = self.reponse_a.page5
+        page5.mesures_organisationnelles = "Politique interne"
+        page5.mesures_techniques = "Chiffrement"
+        page5.save()
+        self.assertEqual(self.reponse_a.suggestion_verdict()["verdict"], EvaluationConformite.NC)
+
+        page4 = self.reponse_a.page4
+        page4.personnes_habilitees_noms = "M. Test"
+        page4.save()
+        # 5/6 = 83% -> CPA (>= 70 % et < 100 %).
+        self.assertEqual(self.reponse_a.suggestion_verdict()["verdict"], EvaluationConformite.CPA)
 
 
 class JournalActionTests(TestCase):

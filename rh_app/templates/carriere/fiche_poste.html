@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 2.5cm 2cm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 11pt; color: #1f2937; }
+  .entete { border-bottom: 2px solid #059669; padding-bottom: 8px; margin-bottom: 18px; }
+  .org { font-size: 14pt; font-weight: bold; color: #059669; }
+  .sous { font-size: 9pt; color: #6b7280; }
+  h1 { font-size: 16pt; text-align: center; text-transform: uppercase; margin: 22px 0; }
+  table.meta { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+  table.meta td { padding: 4px 6px; font-size: 10pt; }
+  table.meta td.k { color: #6b7280; width: 30%; }
+  .section-title { font-weight: bold; margin: 16px 0 6px; color: #059669; }
+  .desc { line-height: 1.5; text-align: justify; }
+  .pied { position: fixed; bottom: -1.5cm; left: 0; right: 0; text-align: center; font-size: 8pt; color: #9ca3af; }
+</style>
+</head>
+<body>
+  <div class="entete">
+    <div class="org">APDPVP</div>
+    <div class="sous">Direction des Ressources Humaines — République Gabonaise</div>
+  </div>
+
+  <h1>Fiche de poste</h1>
+
+  <table class="meta">
+    <tr><td class="k">Intitulé du poste</td><td><strong>{{ poste.intitule }}</strong></td></tr>
+    <tr><td class="k">Département</td><td>{{ poste.departement|default:"—" }}</td></tr>
+    <tr><td class="k">Titulaire(s) actuel(s)</td><td>
+      {% for a in occupants %}{{ a.employe.prenom }} {{ a.employe.nom }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+    </td></tr>
+  </table>
+
+  <div class="section-title">Description du poste</div>
+  <div class="desc">{{ poste.description|linebreaksbr|default:"Aucune description renseignée." }}</div>
+
+  <div class="pied">Document généré par APDPVP RH — {{ poste.intitule }}</div>
+</body>
+</html>
