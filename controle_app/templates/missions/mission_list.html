@@ -14,6 +14,7 @@
         <th class="px-4 py-3 font-medium">Entité contrôlée</th>
         <th class="px-4 py-3 font-medium">Date</th>
         <th class="px-4 py-3 font-medium">Statut</th>
+        <th class="px-4 py-3 font-medium">Documents</th>
         <th class="px-4 py-3"></th>
       </tr>
     </thead>
@@ -27,6 +28,25 @@
             {{ mission.get_statut_display }}
           </span>
         </td>
+        <td class="px-4 py-3">
+          <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {% if mission.pv_document %}
+            <a href="{{ mission.pv_document.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV (.docx)</a>
+            {% endif %}
+            {% if mission.pv_document_pdf %}
+            <a href="{{ mission.pv_document_pdf.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV (.pdf)</a>
+            {% endif %}
+            {% if mission.scan_signe %}
+            <a href="{{ mission.scan_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV signé</a>
+            {% endif %}
+            {% if mission.rapport_signe %}
+            <a href="{{ mission.rapport_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">Rapport signé</a>
+            {% endif %}
+            {% if not mission.pv_document and not mission.scan_signe and not mission.rapport_signe %}
+            <span class="text-gray-400">—</span>
+            {% endif %}
+          </div>
+        </td>
         <td class="px-4 py-3 text-right">
           <a href="{% url 'missions:mission_detail' mission.pk %}" class="text-blue-600 hover:text-blue-800 font-medium">
             Ouvrir →
@@ -34,7 +54,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="4" class="px-4 py-6 text-center text-gray-500">Aucune mission pour l'instant.</td></tr>
+      <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">Aucune mission pour l'instant.</td></tr>
       {% endfor %}
     </tbody>
   </table>

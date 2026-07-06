@@ -76,6 +76,10 @@ def mission_detail(request, mission_pk):
     mission = request.mission
     est_chef = request.user.is_superuser or mission.membres_groupe.chefs().filter(agent__user=request.user).exists()
     reponses = mission.reponses.select_related("page1", "page2", "page3", "page4", "page5")
+    rapport_marque_genere = mission.statut >= StatutMission.RAPPORT_GENERE
+    action_rapport_genere = None
+    if rapport_marque_genere:
+        action_rapport_genere = mission.journal.filter(type_action=TypeAction.RAPPORT_GENERE).first()
     return render(
         request,
         "missions/mission_detail.html",
@@ -88,11 +92,14 @@ def mission_detail(request, mission_pk):
             "infos_pv_form": InfosPVForm(instance=mission),
             "page_range": range(1, 6),
             "est_chef": est_chef,
+            "questionnaire_incomplet": mission.statut < StatutMission.QUESTIONNAIRE_COMPLETE,
             "peut_marquer_pv_genere": est_chef and StatutMission.QUESTIONNAIRE_COMPLETE <= mission.statut < StatutMission.PV_GENERE,
             "peut_uploader_scan": est_chef and StatutMission.PV_GENERE <= mission.statut < StatutMission.RAPPORT_GENERE,
             "peut_marquer_rapport_genere": est_chef and StatutMission.PV_SCAN_UPLOAD <= mission.statut < StatutMission.RAPPORT_GENERE,
             "peut_uploader_rapport_signe": est_chef and StatutMission.RAPPORT_GENERE <= mission.statut < StatutMission.VALIDEE,
             "peut_valider": est_chef and mission.statut == StatutMission.RAPPORT_SCAN_UPLOAD,
+            "rapport_marque_genere": rapport_marque_genere,
+            "action_rapport_genere": action_rapport_genere,
         },
     )
 

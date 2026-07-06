@@ -25,7 +25,9 @@ class MissionControleForm(TailwindForm):
         help_text="Laisser vide pour déclarer une nouvelle entité ci-dessous.",
     )
     nom_nouvelle_entite = forms.CharField(required=False, label="Nom de la nouvelle entité")
-    date_mission = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}), label="Date de la mission")
+    date_mission = forms.DateField(
+        widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"), label="Date de la mission",
+    )
     commentaires_observations = forms.CharField(
         required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Commentaires / observations",
     )
@@ -100,7 +102,7 @@ class InfosPVForm(TailwindModelForm):
             "deliberation_numero", "deliberation_organe",
             "lieu_signature", "date_signature", "heure_signature",
         ]
-        widgets = {"date_signature": forms.DateInput(attrs={"type": "date"})}
+        widgets = {"date_signature": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")}
 
 
 class EvaluationForm(TailwindModelForm):

@@ -25,6 +25,7 @@ python manage.py runserver
 python manage.py test
 python manage.py setup_groups      # crée les groupes/permissions Django
 python manage.py sync_agents       # synchronise les agents (mock en dev, API en prod)
+python manage.py seed_missions     # 3 missions de démo à statuts différents (DEBUG uniquement, appelle seed_dev)
 ```
 
 Config Django dans `config/` (settings via `python-dotenv`, lit `.env` à la

@@ -255,6 +255,23 @@
       Rapport signé :
       <a href="{{ mission.rapport_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">télécharger</a>
     </p>
+    {% elif rapport_marque_genere %}
+    <p class="text-sm mb-4">
+      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Rapport marqué comme généré</span>
+      {% if action_rapport_genere %}
+      <span class="text-gray-500 text-xs ml-1">
+        le {{ action_rapport_genere.horodatage|date:"d/m/Y H:i" }} par {{ action_rapport_genere.utilisateur }}
+      </span>
+      {% endif %}
+      <span class="block text-xs text-gray-400 mt-1">Document réel pas encore disponible — imprimez, faites signer, puis chargez le scan.</span>
+    </p>
+    {% endif %}
+
+    {% if questionnaire_incomplet %}
+    <p class="text-sm text-gray-500 mb-4">
+      Complétez le questionnaire (les 5 pages, jusqu'à l'enregistrement de la page 5) pour faire
+      apparaître le bouton de génération du procès-verbal.
+    </p>
     {% endif %}
 
     {% if peut_marquer_pv_genere %}
