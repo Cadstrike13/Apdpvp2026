@@ -5,3 +5,6 @@ __pycache__/
 .venv/
 media/
 staticfiles/
+
+# Binaire CLI Tailwind téléchargé (voir rh_app/static/css/tailwind-input.css)
+.bin/

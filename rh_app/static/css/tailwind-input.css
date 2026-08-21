@@ -1,0 +1,8 @@
+@import "tailwindcss" source(none);
+
+/* Templates du projet (rendu Django) */
+@source "../../templates";
+
+/* Widgets crispy_tailwind (django-crispy-forms) — vivent dans le venv, pas
+   détectés par la recherche automatique de contenu de Tailwind. */
+@source "../../.rh_app/Lib/site-packages/crispy_tailwind/templates";
