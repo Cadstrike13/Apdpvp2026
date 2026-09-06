@@ -33,8 +33,9 @@ class JournalActionInline(admin.TabularInline):
 
 @admin.register(MissionControle)
 class MissionControleAdmin(admin.ModelAdmin):
-    list_display = ("entite_controlee", "date_mission", "statut", "est_verrouillee", "est_supprime")
-    list_filter = ("statut", "entite_controlee")
+    list_display = ("entites_str", "date_mission", "statut", "est_verrouillee", "est_supprime")
+    list_filter = ("statut", "entites_controlees")
+    filter_horizontal = ("entites_controlees",)
     inlines = [MembreGroupeControleInline, PersonneInterrogeeInline, JournalActionInline]
 
 

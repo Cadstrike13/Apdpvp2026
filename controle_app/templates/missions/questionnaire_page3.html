@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="mb-4">
-  <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">{{ mission.entite_controlee }} — Questionnaire</h1>
+  <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">{{ mission.entites_str }} — Questionnaire</h1>
   <p class="text-gray-500 text-sm">Page {{ page }}/5 — Nature des données collectées</p>
   {% include "missions/_questionnaire_nav.html" %}
 </div>

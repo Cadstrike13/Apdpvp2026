@@ -13,4 +13,11 @@ dans le formulaire de géolocalisation remplacé 'Type d'objet géolocalisé' ap
 
 tout traitement non déclaré est non conforme
 
-joindre l'ordre de mission
+seule l'admin peut créer une mission de contrôles
+quand il créer la mission de controle il choisi la date du controle et l'entité concerné par le contrôles il choisi aussi les membres du groupe de contrôle, et le chef de mission
+
+quand on seule les membres d'un groupe de controle peuvent remplir les formulaire de cette mission
+
+une mission de contrôle peut concerné plusieurs entité
+
+joindre l'ordre de mission pour chaque mission

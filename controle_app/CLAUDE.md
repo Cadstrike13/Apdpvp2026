@@ -81,10 +81,23 @@ d'accueil publique qui redirige vers `/missions/` si déjà connecté.
   `pv_scan_uploade` → `rapport_genere` → `rapport_scan_uploade` → `validee`.
 - **Verrouillage post-génération** : dès que `mission.est_verrouillee` est vrai
   (statut ≥ `pv_genere`), les éléments suivants deviennent immuables :
-  `date_mission`, `entite_controlee`, `PersonneInterrogee`,
+  `date_mission`, `entites_controlees`, `PersonneInterrogee`,
   `MembreGroupeControle`, toutes les `ReponsePage1..5`.
-  Appliqué via `clean()`/`save()`/`delete()` sur chaque modèle concerné —
-  jamais seulement au niveau des vues.
+  Appliqué via `clean()`/`save()`/`delete()` sur chaque modèle concerné
+  (+ signal `m2m_changed` pour `entites_controlees`, `ManyToManyField` nu
+  sans `through` — voir `code_examples.md` §5) — jamais seulement au niveau
+  des vues.
+- **Missions multi-entités** : `MissionControle.entites_controlees` est un
+  `ManyToManyField` vers `EntiteControlee` (une mission peut concerner
+  plusieurs entités) — pas de FK `entite_controlee` (retirée). Affichage
+  agrégé via la propriété `MissionControle.entites_str`.
+- **Création de mission réservée à l'admin** : `mission_create` est protégée
+  par `@require_groupe(GROUPE_ADMINISTRATEUR)` (superuser ou groupe
+  « Administrateur ») — les chefs de mission/agents ne peuvent pas créer de
+  mission, seulement la compléter une fois membres. Le formulaire de
+  création est subdivisé en deux : `MissionControleForm` (entité(s), date,
+  ordre de mission) + `MembreGroupeControleCreationFormSet` (groupe de
+  contrôle, optionnel à la création — réutilise `MembreGroupeControleForm`).
 - **Traçabilité** : `django-simple-history` sur les modèles de réponses
   (modifications champ par champ) + `JournalAction` pour les événements de
   workflow (création mission, PV généré, scan uploadé, rapport généré,
@@ -103,6 +116,15 @@ d'accueil publique qui redirige vers `/missions/` si déjà connecté.
   Certains champs ne sont pertinents que pour certains traitements
   (géolocalisation, biométrie, vidéosurveillance, interconnexion,
   transfert) — voir `reponse_traitement_fields.md`.
+- **Checkliste des traitements déclarés** (`questionnaire_checklist`, avant
+  la page 1) : coche `ReponsePage1.declaration_effectuee` pour chacun des 10
+  traitements — les pages 1 à 5 ne détaillent ensuite que les traitements
+  cochés (`questionnaire_page` filtre sur `declaration_effectuee=True`). Les
+  traitements non cochés sont directement classés `evaluation=NC` (sauf s'ils
+  ont déjà une évaluation — jamais écrasée), cohérent avec la règle « tout
+  traitement non déclaré est non conforme » de `suggestion_verdict()`. La
+  page d'évaluation (`evaluation_page`) continue elle de lister les 10
+  traitements, déclarés ou non.
 
 ## Documents de référence (progressive disclosure)
 

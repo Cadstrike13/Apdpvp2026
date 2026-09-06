@@ -1,5 +1,6 @@
 import os
 import tempfile
+from collections import Counter
 from datetime import date
 
 from django.contrib import messages
@@ -11,13 +12,15 @@ from django.db.models.functions import TruncMonth
 from django.http import Http404
 from django.shortcuts import redirect, render
 
-from core.permissions import require_chef_mission, require_membre_mission
-from entites.models import EntiteControlee
+from core.permissions import GROUPE_ADMINISTRATEUR, est_dans_groupe, require_chef_mission, require_groupe, require_membre_mission
+from entites.models import EntiteControlee, SecteurActivite
 from personnes.models import Personne
 
 from .forms import (
+    DeclarationChecklistFormSet,
     EvaluationFormSet,
     InfosPVForm,
+    MembreGroupeControleCreationFormSet,
     MembreGroupeControleForm,
     MissionControleForm,
     ObservationsForm,
@@ -50,26 +53,19 @@ def _erreurs_en_message(form):
 
 @login_required
 def mission_list(request):
-    missions = MissionControle.objects.select_related("entite_controlee").order_by("-date_mission")
-    return render(request, "missions/mission_list.html", {"missions": missions})
+    missions = MissionControle.objects.prefetch_related("entites_controlees").order_by("-date_mission")
+    return render(
+        request,
+        "missions/mission_list.html",
+        {
+            "missions": missions,
+            "peut_creer_mission": est_dans_groupe(request.user, GROUPE_ADMINISTRATEUR),
+        },
+    )
 
 
 VERDICTS_CONFORMES = [EvaluationConformite.CTO, EvaluationConformite.CPA]
 PERIODES_DASHBOARD_MOIS = {"3": 3, "6": 6, "12": 12, "24": 24}
-
-# Couleurs pleines pour les barres du tableau de bord — distinctes de
-# COULEURS_STATUT (fond clair + texte foncé, utilisé pour les badges).
-COULEURS_BARRE_STATUT = {
-    StatutMission.BROUILLON: "bg-gray-300",
-    StatutMission.PLANIFIEE: "bg-blue-500",
-    StatutMission.EN_COURS: "bg-blue-500",
-    StatutMission.QUESTIONNAIRE_COMPLETE: "bg-blue-500",
-    StatutMission.PV_GENERE: "bg-amber-500",
-    StatutMission.PV_SCAN_UPLOAD: "bg-amber-500",
-    StatutMission.RAPPORT_GENERE: "bg-amber-500",
-    StatutMission.RAPPORT_SCAN_UPLOAD: "bg-amber-500",
-    StatutMission.VALIDEE: "bg-green-500",
-}
 
 
 def _mois_glissants(nombre_mois, aujourdhui=None):
@@ -90,8 +86,9 @@ def _mois_glissants(nombre_mois, aujourdhui=None):
 
 @login_required
 def dashboard(request):
-    """Statistiques des missions de contrôle : avancement, répartition par
-    statut, taux de conformité (global, par traitement et dans le temps).
+    """Statistiques des missions de contrôle : avancement, taux de
+    conformité (global et dans le temps), répartition des entités par
+    secteur d'activité et traitements les plus audités.
     Filtrable par période via ?periode=3|6|12|24|all (12 mois par défaut)."""
     periode = request.GET.get("periode", "12")
     if periode not in PERIODES_DASHBOARD_MOIS and periode != "all":
@@ -109,15 +106,6 @@ def dashboard(request):
         ligne["statut"]: ligne["total"]
         for ligne in missions_qs.values("statut").annotate(total=Count("id"))
     }
-    repartition_statuts = [
-        {
-            "label": statut.label,
-            "total": compte_par_statut.get(statut.value, 0),
-            "pourcentage": round(compte_par_statut.get(statut.value, 0) * 100 / total_missions) if total_missions else 0,
-            "css_barre": COULEURS_BARRE_STATUT.get(statut, "bg-gray-300"),
-        }
-        for statut in StatutMission
-    ]
     missions_validees = compte_par_statut.get(StatutMission.VALIDEE.value, 0)
     missions_en_cours = total_missions - missions_validees
 
@@ -126,22 +114,28 @@ def dashboard(request):
     conformes = reponses_qs.filter(evaluation__in=VERDICTS_CONFORMES).count()
     taux_conformite_global = round(conformes * 100 / total_evaluees) if total_evaluees else None
 
-    reponses_avancement = ReponseTraitement.objects.filter(mission__in=missions_qs).select_related(
-        "page1", "page2", "page3", "page4", "page5"
-    )
+    # Traitements non déclarés exclus : ils n'ont pas de questionnaire à
+    # compléter (voir questionnaire_checklist), un avancement à 0% pour eux
+    # n'indiquerait pas un retard mais un état normal et définitif.
+    reponses_avancement = ReponseTraitement.objects.filter(
+        mission__in=missions_qs, page1__declaration_effectuee=True,
+    ).select_related("page1", "page2", "page3", "page4", "page5")
     pourcentages_avancement = [r.pourcentage_complete for r in reponses_avancement]
     avancement_moyen = round(sum(pourcentages_avancement) / len(pourcentages_avancement)) if pourcentages_avancement else 0
 
-    conformite_par_traitement = []
-    for code, label in Traitement.choices:
-        reponses_traitement = reponses_qs.filter(traitement=code)
-        total_t = reponses_traitement.count()
-        conformes_t = reponses_traitement.filter(evaluation__in=VERDICTS_CONFORMES).count()
-        conformite_par_traitement.append({
-            "label": label,
-            "total_evalue": total_t,
-            "taux": round(conformes_t * 100 / total_t) if total_t else None,
-        })
+    compte_par_traitement = Counter(reponses_qs.values_list("traitement", flat=True))
+    traitements_populaires = sorted(
+        (
+            {
+                "label": label,
+                "total_evalue": compte_par_traitement.get(code, 0),
+                "pourcentage": round(compte_par_traitement.get(code, 0) * 100 / total_evaluees) if total_evaluees else 0,
+            }
+            for code, label in Traitement.choices
+        ),
+        key=lambda ligne: ligne["total_evalue"],
+        reverse=True,
+    )
 
     missions_par_mois = {
         ligne["mois"]: ligne["total"]
@@ -180,9 +174,9 @@ def dashboard(request):
         EntiteControlee.objects.filter(missions__in=missions_qs).distinct().order_by("nom")
     )
     for entite in entites_controlees:
-        missions_entite = missions_qs.filter(entite_controlee=entite).order_by("-date_mission")
-        derniere_mission = missions_entite.select_related("entite_controlee").first()
-        reponses_entite = reponses_qs.filter(mission__entite_controlee=entite)
+        missions_entite = missions_qs.filter(entites_controlees=entite).order_by("-date_mission")
+        derniere_mission = missions_entite.prefetch_related("entites_controlees").first()
+        reponses_entite = reponses_qs.filter(mission__entites_controlees=entite)
         total_eval_entite = reponses_entite.count()
         conformes_entite = reponses_entite.filter(evaluation__in=VERDICTS_CONFORMES).count()
         traitements_couverts = set(reponses_entite.values_list("traitement", flat=True))
@@ -201,6 +195,26 @@ def dashboard(request):
         key=lambda s: s["derniere_mission"].date_mission if s["derniere_mission"] else date.min, reverse=True
     )
 
+    # Décompte en Python (et non via .values().annotate()) : `entites_controlees`
+    # combine .filter(missions__in=...) et .distinct() — enchaîner .values()
+    # sur ce queryset relance une requête qui perd la déduplication et compte
+    # une entité une fois par mission jointe plutôt qu'une fois par entité.
+    nb_entites_controlees = len(structures)
+    labels_secteurs = dict(SecteurActivite.choices)
+    compte_par_secteur = Counter(structure["entite"].secteur_activite for structure in structures)
+    repartition_secteurs = sorted(
+        (
+            {
+                "label": labels_secteurs.get(code, "Non renseigné") if code else "Non renseigné",
+                "total": total,
+                "pourcentage": round(total * 100 / nb_entites_controlees) if nb_entites_controlees else 0,
+            }
+            for code, total in compte_par_secteur.items()
+        ),
+        key=lambda ligne: ligne["total"],
+        reverse=True,
+    )
+
     return render(
         request,
         "missions/dashboard.html",
@@ -212,32 +226,57 @@ def dashboard(request):
             "taux_conformite_global": taux_conformite_global,
             "total_evaluees": total_evaluees,
             "avancement_moyen": avancement_moyen,
-            "repartition_statuts": repartition_statuts,
-            "conformite_par_traitement": conformite_par_traitement,
+            "traitements_populaires": traitements_populaires,
             "evolution": evolution,
             "structures": structures,
+            "nb_entites_controlees": nb_entites_controlees,
+            "repartition_secteurs": repartition_secteurs,
         },
     )
 
 
-@login_required
+@require_groupe(GROUPE_ADMINISTRATEUR)
 def mission_create(request):
+    """Formulaire de création subdivisé en deux parties soumises ensemble :
+    MissionControleForm (entité(s), date, ordre de mission) et
+    MembreGroupeControleCreationFormSet (membres du groupe de contrôle et
+    chef de mission — mêmes champs que l'ajout a posteriori, voir
+    membre_ajouter)."""
     if request.method == "POST":
-        form = MissionControleForm(request.POST)
-        if form.is_valid():
-            entite = form.cleaned_data["entite_controlee"]
-            if not entite:
-                entite = EntiteControlee.objects.create(nom=form.cleaned_data["nom_nouvelle_entite"])
+        form = MissionControleForm(request.POST, request.FILES)
+        membre_formset = MembreGroupeControleCreationFormSet(request.POST, prefix="membres")
+        if form.is_valid() and membre_formset.is_valid():
+            entites = list(form.cleaned_data["entites_controlees"])
+            if form.cleaned_data.get("nom_nouvelle_entite"):
+                entites.append(EntiteControlee.objects.create(
+                    nom=form.cleaned_data["nom_nouvelle_entite"],
+                    secteur_activite=form.cleaned_data["secteur_activite_nouvelle_entite"],
+                ))
+
             mission = MissionControle.objects.create(
-                entite_controlee=entite,
                 date_mission=form.cleaned_data["date_mission"],
                 commentaires_observations=form.cleaned_data["commentaires_observations"],
+                ordre_mission=form.cleaned_data["ordre_mission"],
             )
+            mission.entites_controlees.set(entites)
+
+            for membre_form in membre_formset:
+                if not membre_form.cleaned_data or membre_form.cleaned_data.get("DELETE"):
+                    continue
+                agent = membre_form.cleaned_data.get("agent")
+                if not agent:
+                    continue
+                MembreGroupeControle.objects.create(
+                    mission=mission, agent=agent,
+                    role=membre_form.cleaned_data.get("role") or RoleMission.AGENT,
+                )
+
             journaliser(mission, request.user, TypeAction.CREATION)
             return redirect("missions:mission_detail", mission_pk=mission.pk)
     else:
         form = MissionControleForm()
-    return render(request, "missions/mission_form.html", {"form": form})
+        membre_formset = MembreGroupeControleCreationFormSet(prefix="membres")
+    return render(request, "missions/mission_form.html", {"form": form, "membre_formset": membre_formset})
 
 
 @require_membre_mission
@@ -304,7 +343,7 @@ def personne_ajouter(request, mission_pk):
             service = form.cleaned_data["service_snapshot"]
             if not poste and not service:
                 fonction = personne.fonctions.filter(
-                    entite=mission.entite_controlee, date_fin__isnull=True
+                    entite__in=mission.entites_controlees.all(), date_fin__isnull=True
                 ).first()
                 if fonction:
                     poste = fonction.poste
@@ -322,6 +361,47 @@ def personne_ajouter(request, mission_pk):
 
 
 @require_membre_mission
+def questionnaire_checklist(request, mission_pk):
+    """Étape préalable au questionnaire : cocher les traitements réellement
+    déclarés par l'entité contrôlée. Seuls les traitements déclarés sont
+    ensuite détaillés dans les pages 1 à 5 (voir questionnaire_page) — les
+    autres sont directement classés non conformes, sans qu'il soit besoin
+    de les détailler (voir ReponseTraitement.suggestion_verdict)."""
+    mission = request.mission
+    queryset = (
+        ReponsePage1.objects.filter(reponse__mission=mission)
+        .select_related("reponse")
+        .order_by("reponse__traitement")
+    )
+
+    if request.method == "POST":
+        formset = DeclarationChecklistFormSet(request.POST, queryset=queryset)
+        if formset.is_valid():
+            formset.save()
+            for form in formset.forms:
+                page1 = form.instance
+                reponse = page1.reponse
+                if not page1.declaration_effectuee and not reponse.evaluation:
+                    reponse.evaluation = EvaluationConformite.NC
+                    reponse.save()
+            return redirect("missions:questionnaire_page", mission_pk=mission.pk, page=1)
+        messages.error(request, "Le formulaire contient des erreurs — voir le détail ci-dessous.")
+    else:
+        formset = DeclarationChecklistFormSet(queryset=queryset)
+
+    return render(
+        request,
+        "missions/questionnaire_checklist.html",
+        {
+            "mission": mission,
+            "formset": formset,
+            "lignes": list(zip(formset.forms, queryset)),
+            "page_range": range(1, 6),
+        },
+    )
+
+
+@require_membre_mission
 def questionnaire_page(request, mission_pk, page):
     mission = request.mission
     config = QUESTIONNAIRE_PAGES.get(page)
@@ -333,6 +413,10 @@ def questionnaire_page(request, mission_pk, page):
         .select_related("reponse")
         .order_by("reponse__traitement")
     )
+    if page == 1:
+        queryset = queryset.filter(declaration_effectuee=True)
+    else:
+        queryset = queryset.filter(reponse__page1__declaration_effectuee=True)
     FormSet = config["formset"]
 
     if request.method == "POST":
@@ -456,7 +540,7 @@ def _construire_donnees_pv(mission):
 
     return dict(
         mode_pv=mission.get_mode_pv_display() if mission.mode_pv else "",
-        entite_controlee=str(mission.entite_controlee),
+        entite_controlee=mission.entites_str,
         nom_representant=mission.nom_representant_entite,
         controleurs=controleurs,
         agents_interroges=agents_interroges,

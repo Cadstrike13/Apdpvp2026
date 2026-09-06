@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-4">
+  <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">{{ mission.entites_str }} — Questionnaire</h1>
+  <p class="text-gray-500 text-sm">Traitements déclarés</p>
+  {% include "missions/_questionnaire_nav.html" %}
+</div>
+
+{% if mission.est_verrouillee %}
+<p class="mb-4 rounded-md bg-amber-50 border border-amber-100 text-amber-800 px-4 py-2 text-sm">🔒 Mission verrouillée : lecture seule.</p>
+{% endif %}
+
+<div class="bg-white shadow-sm border border-gray-100 rounded-lg p-6 max-w-2xl">
+  <p class="text-sm text-gray-600 mb-5">
+    Cochez les traitements que l'entité contrôlée a déclaré mettre en œuvre. Seuls les
+    traitements cochés seront détaillés dans les pages 1 à 5 — les traitements non cochés sont
+    directement classés <span class="font-medium text-amber-700">non conformes</span>, sans
+    questionnaire à remplir pour eux.
+  </p>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}
+    <p class="text-red-600 text-sm mb-3">{{ formset.non_form_errors|join:", " }}</p>
+    {% endif %}
+
+    <div class="divide-y divide-gray-100 mb-6">
+      {% for form, ligne in lignes %}
+      <label class="flex items-center justify-between gap-3 py-3 cursor-pointer">
+        <span class="text-sm text-gray-900">
+          <span class="text-gray-400 mr-1">{{ ligne.reponse.traitement|upper }})</span>
+          {{ ligne.reponse.get_traitement_display }}
+        </span>
+        {{ form.declaration_effectuee }}
+      </label>
+      {% if form.errors %}
+      <p class="text-red-600 text-xs pb-2">{{ form.errors|join:", " }}</p>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    {% if not mission.est_verrouillee %}
+    <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm">
+      Enregistrer et continuer →
+    </button>
+    {% endif %}
+  </form>
+</div>
+{% endblock %}

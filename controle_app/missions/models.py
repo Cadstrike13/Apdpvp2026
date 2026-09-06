@@ -88,12 +88,22 @@ class MissionControleManager(SoftDeleteManager):
 
 
 class MissionControle(SoftDeleteMixin, models.Model):
-    entite_controlee = models.ForeignKey(
-        "entites.EntiteControlee", on_delete=models.PROTECT, related_name="missions"
+    entites_controlees = models.ManyToManyField(
+        "entites.EntiteControlee", related_name="missions",
     )
     date_mission = models.DateField()
     statut = models.IntegerField(choices=StatutMission.choices, default=StatutMission.BROUILLON)
     commentaires_observations = models.TextField(blank=True)
+    ordre_mission = models.FileField(
+        verbose_name="Ordre de mission",
+        upload_to="ordres_mission/%Y/%m/",
+        blank=True,
+        null=True,
+        validators=[
+            FileExtensionValidator(EXTENSIONS_SCAN_AUTORISEES),
+            ValidateurTailleFichier(TAILLE_MAX_FICHIER_MO),
+        ],
+    )
     scan_signe = models.FileField(
         verbose_name="Procès-verbal signé (scan)",
         upload_to="scans_signes/%Y/%m/",
@@ -152,7 +162,13 @@ class MissionControle(SoftDeleteMixin, models.Model):
         verbose_name_plural = "Missions de contrôle"
 
     def __str__(self):
-        return f"Mission {self.entite_controlee} — {self.date_mission}"
+        return f"Mission {self.entites_str} — {self.date_mission}"
+
+    @property
+    def entites_str(self):
+        """Noms des entités contrôlées, séparés par une virgule — pour
+        affichage (templates, PV, admin) et journalisation."""
+        return ", ".join(str(entite) for entite in self.entites_controlees.all()) or "—"
 
     @property
     def est_verrouillee(self):
@@ -173,11 +189,6 @@ class MissionControle(SoftDeleteMixin, models.Model):
                 date_mission = self._meta.get_field("date_mission").to_python(self.date_mission)
                 if ancien.date_mission != date_mission:
                     raise ValidationError("Impossible de modifier 'date_mission' : mission verrouillée.")
-                entite_controlee_id = self.entite_controlee_id
-                if isinstance(entite_controlee_id, str):
-                    entite_controlee_id = int(entite_controlee_id)
-                if ancien.entite_controlee_id != entite_controlee_id:
-                    raise ValidationError("Impossible de modifier 'entite_controlee' : mission verrouillée.")
         super().save(*args, **kwargs)
 
 
@@ -450,6 +461,13 @@ class ReponseTraitement(models.Model):
             verdict = EvaluationConformite.NC
         else:
             verdict = EvaluationConformite.CPR
+
+        if not self.page1.declaration_effectuee and verdict in (EvaluationConformite.CTO, EvaluationConformite.CPA):
+            # Règle métier : un traitement non déclaré ne peut jamais être jugé
+            # conforme (total ou partiel), même si le reste de la checklist
+            # est respecté — seul critère "bloquant" (voir calcul_conformite.md).
+            # Un score déjà à NC/CPR n'est jamais amélioré ni aggravé par cette règle.
+            verdict = EvaluationConformite.NC
 
         return {
             "verdict": verdict,

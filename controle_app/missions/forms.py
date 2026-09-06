@@ -1,11 +1,16 @@
 from django import forms
-from django.forms import modelformset_factory
+from django.core.validators import FileExtensionValidator
+from django.forms import BaseFormSet, formset_factory, modelformset_factory
 
+from agents.models import AgentControleur
 from core.forms import TailwindForm, TailwindModelForm
-from entites.models import EntiteControlee
+from core.validators import ValidateurTailleFichier
+from entites.models import EntiteControlee, SecteurActivite
 from personnes.models import Personne
 
 from .models import (
+    EXTENSIONS_SCAN_AUTORISEES,
+    TAILLE_MAX_FICHIER_MO,
     MembreGroupeControle,
     MissionControle,
     ReponsePage1,
@@ -14,29 +19,45 @@ from .models import (
     ReponsePage4,
     ReponsePage5,
     ReponseTraitement,
+    RoleMission,
 )
 
 
 class MissionControleForm(TailwindForm):
-    """Sélectionner une entité déjà connue OU en déclarer une nouvelle."""
+    """Informations générales de la mission : entité(s) contrôlée(s) —
+    une ou plusieurs, déjà connues et/ou nouvelle — date, ordre de mission.
+    Le groupe de contrôle (membres + chef) est un formulaire séparé,
+    voir MembreGroupeControleCreationFormSet ci-dessous."""
 
-    entite_controlee = forms.ModelChoiceField(
-        queryset=EntiteControlee.objects.all(), required=False, label="Entité contrôlée",
-        help_text="Laisser vide pour déclarer une nouvelle entité ci-dessous.",
+    entites_controlees = forms.ModelMultipleChoiceField(
+        queryset=EntiteControlee.objects.all(), required=False, label="Entités contrôlées",
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Sélectionnez une ou plusieurs entités déjà connues. Ajoutez-en une nouvelle ci-dessous si besoin.",
     )
     nom_nouvelle_entite = forms.CharField(required=False, label="Nom de la nouvelle entité")
+    secteur_activite_nouvelle_entite = forms.ChoiceField(
+        choices=[("", "—")] + SecteurActivite.choices, required=False,
+        label="Secteur d'activité de la nouvelle entité",
+    )
     date_mission = forms.DateField(
         widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"), label="Date de la mission",
     )
     commentaires_observations = forms.CharField(
         required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Commentaires / observations",
     )
+    ordre_mission = forms.FileField(
+        required=False, label="Ordre de mission",
+        validators=[
+            FileExtensionValidator(EXTENSIONS_SCAN_AUTORISEES),
+            ValidateurTailleFichier(TAILLE_MAX_FICHIER_MO),
+        ],
+    )
 
     def clean(self):
         cleaned_data = super().clean()
-        if not cleaned_data.get("entite_controlee") and not cleaned_data.get("nom_nouvelle_entite"):
+        if not cleaned_data.get("entites_controlees") and not cleaned_data.get("nom_nouvelle_entite"):
             raise forms.ValidationError(
-                "Sélectionnez une entité déjà contrôlée ou renseignez le nom d'une nouvelle entité."
+                "Sélectionnez au moins une entité déjà contrôlée ou renseignez le nom d'une nouvelle entité."
             )
         return cleaned_data
 
@@ -45,6 +66,50 @@ class MembreGroupeControleForm(TailwindModelForm):
     class Meta:
         model = MembreGroupeControle
         fields = ["agent", "role"]
+
+
+class MembreInitialForm(TailwindForm):
+    """Ligne du groupe de contrôle saisie à la création de la mission.
+    Formulaire simple (pas un ModelForm sur MembreGroupeControle) : à ce
+    stade la mission n'existe pas encore, or MembreGroupeControle.clean()
+    exige une mission déjà assignée pour vérifier le verrouillage — les
+    lignes remplies sont donc converties en MembreGroupeControle (avec
+    save() donc clean()) seulement après coup, une fois la mission créée
+    (voir mission_create). Une ligne laissée vide est simplement ignorée."""
+
+    agent = forms.ModelChoiceField(queryset=AgentControleur.objects.all(), required=False, label="Agent")
+    role = forms.ChoiceField(choices=RoleMission.choices, required=False, label="Rôle")
+
+
+class BaseMembreInitialFormSet(BaseFormSet):
+    """Un seul chef de mission, et un agent au plus une fois — validé ici
+    plutôt que de laisser échouer la contrainte DB `un_seul_chef_par_mission`
+    avec un message peu clair."""
+
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        agents_vus = set()
+        nb_chefs = 0
+        for form in self.forms:
+            if not form.cleaned_data or form.cleaned_data.get("DELETE"):
+                continue
+            agent = form.cleaned_data.get("agent")
+            if not agent:
+                continue
+            if agent.pk in agents_vus:
+                raise forms.ValidationError("Un agent ne peut être ajouté qu'une seule fois au groupe de contrôle.")
+            agents_vus.add(agent.pk)
+            if form.cleaned_data.get("role") == RoleMission.CHEF:
+                nb_chefs += 1
+        if nb_chefs > 1:
+            raise forms.ValidationError("Un seul chef de mission peut être désigné.")
+
+
+MembreGroupeControleCreationFormSet = formset_factory(
+    MembreInitialForm, formset=BaseMembreInitialFormSet, extra=4, can_delete=True,
+)
 
 
 class PersonneInterrogeeForm(TailwindForm):
@@ -117,6 +182,18 @@ class EvaluationForm(TailwindModelForm):
 
 
 EvaluationFormSet = modelformset_factory(ReponseTraitement, form=EvaluationForm, extra=0)
+
+
+class DeclarationChecklistForm(TailwindModelForm):
+    """Une ligne de la checkliste des traitements déclarés — étape
+    préalable au questionnaire (voir missions/views.py::questionnaire_checklist)."""
+
+    class Meta:
+        model = ReponsePage1
+        fields = ["declaration_effectuee"]
+
+
+DeclarationChecklistFormSet = modelformset_factory(ReponsePage1, form=DeclarationChecklistForm, extra=0)
 
 
 class ReponsePage1Form(TailwindModelForm):

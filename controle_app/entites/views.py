@@ -1,11 +1,11 @@
 from datetime import date
 
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 
 from missions.models import EvaluationConformite, PersonneInterrogee, ReponseTraitement, Traitement
 
-from .models import EntiteControlee
+from .models import EntiteControlee, SecteurActivite
 
 VERDICTS_CONFORMES = [EvaluationConformite.CTO, EvaluationConformite.CPA]
 
@@ -28,7 +28,7 @@ def entite_list(request):
     lignes = []
     for entite in entites:
         missions = entite.missions.all()
-        reponses = ReponseTraitement.objects.filter(mission__entite_controlee=entite).exclude(evaluation="")
+        reponses = ReponseTraitement.objects.filter(mission__entites_controlees=entite).exclude(evaluation="")
         taux, total_eval = _taux_conformite(reponses)
         lignes.append({
             "entite": entite,
@@ -54,7 +54,7 @@ def entite_detail(request, entite_pk):
         taux, total_eval = _taux_conformite(mission.reponses.exclude(evaluation=""))
         missions_info.append({"mission": mission, "taux_conformite": taux, "total_evalue": total_eval})
 
-    reponses_entite = ReponseTraitement.objects.filter(mission__entite_controlee=entite).exclude(evaluation="")
+    reponses_entite = ReponseTraitement.objects.filter(mission__entites_controlees=entite).exclude(evaluation="")
     taux_conformite_global, total_evalue_entite = _taux_conformite(reponses_entite)
     traitements_couverts = set(reponses_entite.values_list("traitement", flat=True))
     traitements = [
@@ -64,7 +64,7 @@ def entite_detail(request, entite_pk):
 
     personnes_par_id = {}
     for pi in (
-        PersonneInterrogee.objects.filter(mission__entite_controlee=entite)
+        PersonneInterrogee.objects.filter(mission__entites_controlees=entite)
         .select_related("personne")
         .order_by("mission__date_mission")
     ):
@@ -85,5 +85,17 @@ def entite_detail(request, entite_pk):
             "total_evalue_entite": total_evalue_entite,
             "traitements": traitements,
             "personnes": personnes,
+            "secteurs_choices": SecteurActivite.choices,
         },
     )
+
+
+@login_required
+def entite_secteur_modifier(request, entite_pk):
+    entite = get_object_or_404(EntiteControlee, pk=entite_pk)
+    if request.method == "POST":
+        secteur = request.POST.get("secteur_activite", "")
+        if secteur in dict(SecteurActivite.choices) or secteur == "":
+            entite.secteur_activite = secteur
+            entite.save(update_fields=["secteur_activite"])
+    return redirect("entites:entite_detail", entite_pk=entite.pk)

@@ -83,7 +83,7 @@ Depuis la fiche mission, cliquer « Page 1 ».
 
 - [ ] Navigation Page 1 → 5 via les liens en haut (page active mise en
   évidence).
-- [ ] **Page 1** : les colonnes « Type d'objet géolocalisé » et
+- [ ] **Page 1** : les colonnes « Appareil géolocalisé » et
   « Désactivation pendant la pause » ne sont visibles/actives que sur la
   ligne « Géolocalisation » (traitement j) — vérifier que le JS masque bien
   les cellules des 9 autres lignes.

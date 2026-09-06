@@ -23,7 +23,9 @@ from ..models import (
 
 def creer_mission(**kwargs):
     entite = kwargs.pop("entite_controlee", None) or EntiteControlee.objects.create(nom="ACME SA")
-    return MissionControle.objects.create(entite_controlee=entite, date_mission="2026-07-01", **kwargs)
+    mission = MissionControle.objects.create(date_mission="2026-07-01", **kwargs)
+    mission.entites_controlees.add(entite)
+    return mission
 
 
 class SignalCreationReponsesTests(TestCase):
@@ -75,14 +77,21 @@ class VerrouillagePostGenerationTests(TestCase):
         with self.assertRaises(ValidationError):
             self.mission.save()
 
-    def test_entite_controlee_immuable_apres_verrouillage(self):
+    def test_entites_controlees_immuable_apres_verrouillage(self):
         autre_entite = EntiteControlee.objects.create(nom="Beta SARL")
         self.mission.statut = StatutMission.PV_GENERE
         self.mission.save()
 
-        self.mission.entite_controlee = autre_entite
         with self.assertRaises(ValidationError):
-            self.mission.save()
+            self.mission.entites_controlees.add(autre_entite)
+
+    def test_entites_controlees_non_retirable_apres_verrouillage(self):
+        entite_initiale = self.mission.entites_controlees.first()
+        self.mission.statut = StatutMission.PV_GENERE
+        self.mission.save()
+
+        with self.assertRaises(ValidationError):
+            self.mission.entites_controlees.remove(entite_initiale)
 
     def test_commentaires_observations_reste_modifiable_apres_verrouillage(self):
         self.mission.statut = StatutMission.PV_GENERE
@@ -93,16 +102,6 @@ class VerrouillagePostGenerationTests(TestCase):
 
         self.mission.refresh_from_db()
         self.assertEqual(self.mission.commentaires_observations, "toujours modifiable")
-
-    def test_entite_controlee_id_sous_forme_de_chaine_ne_declenche_pas_le_verrou(self):
-        """entite_controlee_id peut être une chaîne avant le premier
-        full_clean() (ex. valeur brute reçue d'un formulaire) — comparée à
-        la même valeur en base, ça ne doit pas être vu comme une modification."""
-        self.mission.statut = StatutMission.PV_GENERE
-        self.mission.save()
-
-        self.mission.entite_controlee_id = str(self.mission.entite_controlee_id)
-        self.mission.save()  # ne doit pas lever
 
     def test_date_mission_identique_ne_declenche_pas_le_verrou(self):
         self.mission.statut = StatutMission.PV_GENERE
@@ -312,6 +311,40 @@ class SuggestionVerdictTests(TestCase):
         page4.save()
         # 5/6 = 83% -> CPA (>= 70 % et < 100 %).
         self.assertEqual(self.reponse_a.suggestion_verdict()["verdict"], EvaluationConformite.CPA)
+
+    def test_non_declare_plafonne_le_verdict_a_non_conforme(self):
+        """Règle métier : un traitement non déclaré n'est jamais jugé
+        conforme (CTO/CPA), même si tous les autres critères sont respectés —
+        le verdict est plafonné à NC (voir calcul_conformite.md)."""
+        page1 = self.reponse_a.page1
+        page1.declaration_effectuee = False
+        page1.droits_respectes = True
+        page1.save()
+
+        page3 = self.reponse_a.page3
+        page3.duree_conservation = "5 ans"
+        page3.save()
+
+        page4 = self.reponse_a.page4
+        page4.personnes_habilitees_noms = "M. Test"
+        page4.save()
+
+        page5 = self.reponse_a.page5
+        page5.mesures_organisationnelles = "Politique interne"
+        page5.mesures_techniques = "Chiffrement"
+        page5.save()
+
+        suggestion = self.reponse_a.suggestion_verdict()
+        # 5/6 = 83% aurait donné CPA si déclaré — plafonné à NC ici.
+        self.assertEqual(suggestion["pourcentage"], 83)
+        self.assertEqual(suggestion["verdict"], EvaluationConformite.NC)
+
+    def test_non_declare_n_ameliore_pas_un_score_deja_preoccupant(self):
+        """La règle de plafonnement n'améliore jamais un verdict déjà pire
+        que NC : un score très faible reste CPR, pas NC."""
+        suggestion = self.reponse_a.suggestion_verdict()
+        self.assertFalse(self.reponse_a.page1.declaration_effectuee)
+        self.assertEqual(suggestion["verdict"], EvaluationConformite.CPR)
 
 
 class JournalActionTests(TestCase):

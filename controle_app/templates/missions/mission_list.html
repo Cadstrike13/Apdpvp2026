@@ -2,10 +2,12 @@
 {% block content %}
 <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
   <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">Missions de contrôle</h1>
+  {% if peut_creer_mission %}
   <a href="{% url 'missions:mission_create' %}"
      class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm">
     + Nouvelle mission
   </a>
+  {% endif %}
 </div>
 <div class="bg-white shadow-sm border border-gray-100 rounded-lg overflow-x-auto">
   <table class="w-full text-sm">
@@ -21,7 +23,7 @@
     <tbody class="divide-y divide-gray-100">
       {% for mission in missions %}
       <tr class="hover:bg-gray-50 transition-colors">
-        <td class="px-4 py-3 text-gray-900">{{ mission.entite_controlee }}</td>
+        <td class="px-4 py-3 text-gray-900">{{ mission.entites_str }}</td>
         <td class="px-4 py-3 text-gray-600">{{ mission.date_mission }}</td>
         <td class="px-4 py-3">
           <span class="px-2 py-1 rounded-full text-xs font-medium {{ mission.statut_css_classes }}">
@@ -30,6 +32,9 @@
         </td>
         <td class="px-4 py-3">
           <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {% if mission.ordre_mission %}
+            <a href="{{ mission.ordre_mission.url }}" class="text-blue-600 hover:text-blue-800 font-medium">Ordre de mission</a>
+            {% endif %}
             {% if mission.pv_document %}
             <a href="{{ mission.pv_document.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV (.docx)</a>
             {% endif %}
@@ -42,7 +47,7 @@
             {% if mission.rapport_signe %}
             <a href="{{ mission.rapport_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">Rapport signé</a>
             {% endif %}
-            {% if not mission.pv_document and not mission.scan_signe and not mission.rapport_signe %}
+            {% if not mission.ordre_mission and not mission.pv_document and not mission.scan_signe and not mission.rapport_signe %}
             <span class="text-gray-400">—</span>
             {% endif %}
           </div>

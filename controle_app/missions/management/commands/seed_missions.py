@@ -264,10 +264,10 @@ class Command(BaseCommand):
                 entite = random.choice(entites)
 
                 mission = MissionControle.objects.create(
-                    entite_controlee=entite,
                     date_mission=date_mission,
                     commentaires_observations=f"{MARQUEUR_SEED} Mission de contrôle n°{i + 1}.",
                 )
+                mission.entites_controlees.add(entite)
 
                 MembreGroupeControle.objects.create(mission=mission, agent=chef, role=RoleMission.CHEF)
                 for agent in random.sample(autres_agents, k=min(random.randint(1, 2), len(autres_agents))):

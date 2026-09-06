@@ -17,7 +17,7 @@
 </div>
 
 <!-- KPI -->
-<div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+<div class="grid grid-cols-2 lg:grid-cols-7 gap-4 mb-8">
   <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
     <p class="text-xs text-gray-500">Missions</p>
     <p class="text-2xl font-semibold text-gray-900">{{ total_missions }}</p>
@@ -27,8 +27,12 @@
     <p class="text-2xl font-semibold text-blue-700">{{ missions_en_cours }}</p>
   </div>
   <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
-    <p class="text-xs text-gray-500">Validées</p>
+    <p class="text-xs text-gray-500">Missions clôturées</p>
     <p class="text-2xl font-semibold text-green-700">{{ missions_validees }}</p>
+  </div>
+  <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
+    <p class="text-xs text-gray-500">Entités contrôlées</p>
+    <p class="text-2xl font-semibold text-gray-900">{{ nb_entites_controlees }}</p>
   </div>
   <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
     <p class="text-xs text-gray-500">Avancement questionnaire</p>
@@ -47,50 +51,44 @@
 </div>
 
 <div class="grid lg:grid-cols-2 gap-6 mb-8">
-  <!-- Répartition par statut -->
+  <!-- Répartition par secteur d'activité -->
   <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-5">
-    <h2 class="text-sm font-semibold text-gray-900 mb-4">Avancement des missions par statut</h2>
+    <h2 class="text-sm font-semibold text-gray-900 mb-1">Répartition par secteur d'activité</h2>
+    <p class="text-xs text-gray-500 mb-4">Entités contrôlées sur cette période, par secteur</p>
     <div class="space-y-3">
-      {% for ligne in repartition_statuts %}
+      {% for ligne in repartition_secteurs %}
       <div>
         <div class="flex items-center justify-between text-xs mb-1">
           <span class="text-gray-700">{{ ligne.label }}</span>
           <span class="text-gray-500">{{ ligne.total }} ({{ ligne.pourcentage }}%)</span>
         </div>
         <div class="w-full bg-gray-100 rounded-full h-2.5">
-          <div class="h-2.5 rounded-full {{ ligne.css_barre }}" style="width: {{ ligne.pourcentage }}%;"></div>
+          <div class="h-2.5 rounded-full bg-blue-500" style="width: {{ ligne.pourcentage }}%;"></div>
         </div>
       </div>
+      {% empty %}
+      <p class="text-sm text-gray-400">Aucune entité contrôlée sur cette période.</p>
       {% endfor %}
-      {% if not total_missions %}
-      <p class="text-sm text-gray-400">Aucune mission sur cette période.</p>
-      {% endif %}
     </div>
   </div>
 
-  <!-- Conformité par traitement -->
+  <!-- Traitements les plus populaires -->
   <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-5">
-    <h2 class="text-sm font-semibold text-gray-900 mb-4">Taux de conformité par traitement</h2>
+    <h2 class="text-sm font-semibold text-gray-900 mb-1">Traitements les plus populaires</h2>
+    <p class="text-xs text-gray-500 mb-4">Traitements les plus fréquemment évalués sur cette période</p>
     <div class="space-y-3">
-      {% for ligne in conformite_par_traitement %}
+      {% for ligne in traitements_populaires %}
       <div>
         <div class="flex items-center justify-between text-xs mb-1">
           <span class="text-gray-700">{{ ligne.label }}</span>
-          {% if ligne.taux is not None %}
-            <span class="text-gray-500">{{ ligne.taux }}% ({{ ligne.total_evalue }})</span>
-          {% else %}
-            <span class="text-gray-400">Non évalué</span>
-          {% endif %}
+          <span class="text-gray-500">{{ ligne.total_evalue }} ({{ ligne.pourcentage }}%)</span>
         </div>
         <div class="w-full bg-gray-100 rounded-full h-2.5">
-          <div class="h-2.5 rounded-full
-                       {% if ligne.taux is None %}bg-gray-200
-                       {% elif ligne.taux >= 70 %}bg-green-500
-                       {% elif ligne.taux >= 40 %}bg-amber-500
-                       {% else %}bg-red-500{% endif %}"
-               style="width: {{ ligne.taux|default:0 }}%;"></div>
+          <div class="h-2.5 rounded-full bg-blue-500" style="width: {{ ligne.pourcentage }}%;"></div>
         </div>
       </div>
+      {% empty %}
+      <p class="text-sm text-gray-400">Aucune évaluation sur cette période.</p>
       {% endfor %}
     </div>
   </div>

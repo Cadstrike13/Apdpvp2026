@@ -18,6 +18,7 @@
     <thead class="bg-gray-50 text-left text-gray-600">
       <tr>
         <th class="px-4 py-3 font-medium">Entité</th>
+        <th class="px-4 py-3 font-medium">Secteur d'activité</th>
         <th class="px-4 py-3 font-medium">Missions</th>
         <th class="px-4 py-3 font-medium">Dernier contrôle</th>
         <th class="px-4 py-3 font-medium">Conformité</th>
@@ -28,6 +29,13 @@
       {% for ligne in lignes %}
       <tr class="hover:bg-gray-50 transition-colors">
         <td class="px-4 py-3 text-gray-900 font-medium">{{ ligne.entite }}</td>
+        <td class="px-4 py-3 text-gray-600">
+          {% if ligne.entite.secteur_activite %}
+            {{ ligne.entite.get_secteur_activite_display }}
+          {% else %}
+            <span class="text-gray-400">Non renseigné</span>
+          {% endif %}
+        </td>
         <td class="px-4 py-3 text-gray-600">{{ ligne.nb_missions }}</td>
         <td class="px-4 py-3">
           {% if ligne.derniere_mission %}
@@ -58,7 +66,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">Aucune entité{% if q %} pour « {{ q }} »{% endif %}.</td></tr>
+      <tr><td colspan="6" class="px-4 py-6 text-center text-gray-500">Aucune entité{% if q %} pour « {{ q }} »{% endif %}.</td></tr>
       {% endfor %}
     </tbody>
   </table>

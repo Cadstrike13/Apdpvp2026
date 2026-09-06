@@ -20,13 +20,24 @@ MEDIA_ROOT_TEST = tempfile.mkdtemp()
 
 def creer_mission(**kwargs):
     entite = kwargs.pop("entite_controlee", None) or EntiteControlee.objects.create(nom="ACME SA")
-    return MissionControle.objects.create(entite_controlee=entite, date_mission="2026-07-01", **kwargs)
+    mission = MissionControle.objects.create(date_mission="2026-07-01", **kwargs)
+    mission.entites_controlees.add(entite)
+    return mission
 
 
 def creer_utilisateur_agent(username, external_id):
     user = User.objects.create_user(username=username, password="pass-123")
     agent = AgentControleur.objects.create(external_id=external_id, nom=username, prenom=username, user=user)
     return user, agent
+
+
+def declarer_tous_traitements(mission):
+    """Coche 'Déclaration effectuée' pour les 10 traitements — équivalent à
+    passer par la checkliste (questionnaire_checklist) avant les pages 1 à 5,
+    qui ne détaillent que les traitements déclarés."""
+    for reponse in mission.reponses.select_related("page1"):
+        reponse.page1.declaration_effectuee = True
+        reponse.page1.save()
 
 
 def completer_page(client, mission, page):
@@ -88,6 +99,20 @@ class PermissionsTests(TestCase):
         r = self.client.get(reverse("missions:mission_detail", args=[self.mission.pk]))
         self.assertEqual(r.status_code, 200)
 
+    def test_mission_create_reserve_a_l_admin(self):
+        """Seule l'admin (groupe Administrateur ou superuser) peut créer une
+        mission — chef et agent contrôleur, même membres d'un groupe de
+        contrôle, sont refusés."""
+        self.client.login(username="chef", password="pass-123")
+        r = self.client.get(reverse("missions:mission_create"))
+        self.assertEqual(r.status_code, 403)
+
+    def test_mission_create_autorise_pour_superuser(self):
+        superuser = User.objects.create_superuser(username="admin", password="pass-123", email="a@a.com")
+        self.client.force_login(superuser)
+        r = self.client.get(reverse("missions:mission_create"))
+        self.assertEqual(r.status_code, 200)
+
 
 class DashboardViewsTests(TestCase):
     def setUp(self):
@@ -98,31 +123,97 @@ class DashboardViewsTests(TestCase):
         r = self.client.get(reverse("missions:mission_list"))
         self.assertEqual(r.status_code, 200)
 
+    def _donnees_formset_membres_vide(self):
+        return {
+            "membres-TOTAL_FORMS": "0",
+            "membres-INITIAL_FORMS": "0",
+            "membres-MIN_NUM_FORMS": "0",
+            "membres-MAX_NUM_FORMS": "1000",
+        }
+
     def test_mission_create(self):
         entite = EntiteControlee.objects.create(nom="ACME SA")
         r = self.client.post(reverse("missions:mission_create"), {
-            "entite_controlee": entite.pk,
+            "entites_controlees": [entite.pk],
             "date_mission": "2026-07-10",
             "commentaires_observations": "",
+            **self._donnees_formset_membres_vide(),
         })
         self.assertEqual(r.status_code, 302)
-        mission = MissionControle.objects.get(entite_controlee=entite)
+        mission = MissionControle.objects.get(entites_controlees=entite)
         self.assertEqual(mission.reponses.count(), 10)
+
+    def test_mission_create_avec_plusieurs_entites(self):
+        entite_a = EntiteControlee.objects.create(nom="ACME SA")
+        entite_b = EntiteControlee.objects.create(nom="Omega SARL")
+        r = self.client.post(reverse("missions:mission_create"), {
+            "entites_controlees": [entite_a.pk, entite_b.pk],
+            "date_mission": "2026-07-10",
+            "commentaires_observations": "",
+            **self._donnees_formset_membres_vide(),
+        })
+        self.assertEqual(r.status_code, 302)
+        mission = MissionControle.objects.get(entites_controlees=entite_a)
+        self.assertEqual(set(mission.entites_controlees.all()), {entite_a, entite_b})
 
     def test_mission_create_avec_nouvelle_entite(self):
         r = self.client.post(reverse("missions:mission_create"), {
             "nom_nouvelle_entite": "Beta SARL",
             "date_mission": "2026-07-10",
             "commentaires_observations": "",
+            **self._donnees_formset_membres_vide(),
         })
         self.assertEqual(r.status_code, 302)
-        mission = MissionControle.objects.get(entite_controlee__nom="Beta SARL")
+        mission = MissionControle.objects.get(entites_controlees__nom="Beta SARL")
         self.assertEqual(mission.reponses.count(), 10)
 
     def test_mission_create_refuse_sans_entite_ni_nom(self):
         r = self.client.post(reverse("missions:mission_create"), {
             "date_mission": "2026-07-10",
             "commentaires_observations": "",
+            **self._donnees_formset_membres_vide(),
+        })
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(MissionControle.objects.exists())
+
+    def test_mission_create_avec_membres_et_chef(self):
+        entite = EntiteControlee.objects.create(nom="ACME SA")
+        chef = AgentControleur.objects.create(external_id="AG-CHEF", nom="Nzue", prenom="Alice")
+        agent = AgentControleur.objects.create(external_id="AG-AGENT", nom="Mbadinga", prenom="Paul")
+        r = self.client.post(reverse("missions:mission_create"), {
+            "entites_controlees": [entite.pk],
+            "date_mission": "2026-07-10",
+            "commentaires_observations": "",
+            "membres-TOTAL_FORMS": "2",
+            "membres-INITIAL_FORMS": "0",
+            "membres-MIN_NUM_FORMS": "0",
+            "membres-MAX_NUM_FORMS": "1000",
+            "membres-0-agent": chef.pk,
+            "membres-0-role": RoleMission.CHEF,
+            "membres-1-agent": agent.pk,
+            "membres-1-role": RoleMission.AGENT,
+        })
+        self.assertEqual(r.status_code, 302)
+        mission = MissionControle.objects.get(entites_controlees=entite)
+        self.assertEqual(mission.membres_groupe.count(), 2)
+        self.assertTrue(mission.membres_groupe.chefs().filter(agent=chef).exists())
+
+    def test_mission_create_refuse_deux_chefs(self):
+        entite = EntiteControlee.objects.create(nom="ACME SA")
+        chef_a = AgentControleur.objects.create(external_id="AG-A", nom="Nzue", prenom="Alice")
+        chef_b = AgentControleur.objects.create(external_id="AG-B", nom="Mbadinga", prenom="Paul")
+        r = self.client.post(reverse("missions:mission_create"), {
+            "entites_controlees": [entite.pk],
+            "date_mission": "2026-07-10",
+            "commentaires_observations": "",
+            "membres-TOTAL_FORMS": "2",
+            "membres-INITIAL_FORMS": "0",
+            "membres-MIN_NUM_FORMS": "0",
+            "membres-MAX_NUM_FORMS": "1000",
+            "membres-0-agent": chef_a.pk,
+            "membres-0-role": RoleMission.CHEF,
+            "membres-1-agent": chef_b.pk,
+            "membres-1-role": RoleMission.CHEF,
         })
         self.assertEqual(r.status_code, 200)
         self.assertFalse(MissionControle.objects.exists())
@@ -198,7 +289,7 @@ class DashboardViewsTests(TestCase):
         mission = creer_mission()
         personne = Personne.objects.create(nom="Ndong", prenom="Paul")
         Fonction.objects.create(
-            personne=personne, entite=mission.entite_controlee, poste="DAF", service="Finance",
+            personne=personne, entite=mission.entites_controlees.first(), poste="DAF", service="Finance",
         )
 
         r = self.client.post(reverse("missions:personne_ajouter", args=[mission.pk]), {"personne": personne.pk})
@@ -222,6 +313,7 @@ class QuestionnaireFlowTests(TestCase):
         self.user = User.objects.create_superuser(username="admin", password="pass-123", email="a@a.com")
         self.client.force_login(self.user)
         self.mission = creer_mission()
+        declarer_tous_traitements(self.mission)
 
     def test_parcours_des_5_pages_complete_le_statut(self):
         for page in range(1, 6):
@@ -249,6 +341,66 @@ class QuestionnaireFlowTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.mission.refresh_from_db()
         self.assertEqual(self.mission.statut, StatutMission.BROUILLON)
+
+
+class QuestionnaireChecklistTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(username="admin", password="pass-123", email="a@a.com")
+        self.client.force_login(self.user)
+        self.mission = creer_mission()
+
+    def _donnees_checklist(self, codes_declares):
+        r = self.client.get(reverse("missions:questionnaire_checklist", args=[self.mission.pk]))
+        formset = r.context["formset"]
+        lignes = r.context["lignes"]
+        data = {f"form-{k}": v for k, v in formset.management_form.initial.items()}
+        for i, (form, page1) in enumerate(lignes):
+            data[f"form-{i}-id"] = page1.pk
+            if page1.reponse.traitement in codes_declares:
+                data[f"form-{i}-declaration_effectuee"] = "on"
+        return data
+
+    def test_aucun_traitement_declare_par_defaut(self):
+        r = self.client.get(reverse("missions:questionnaire_page", args=[self.mission.pk, 1]))
+        self.assertEqual(list(r.context["lignes"]), [])
+
+    def test_checklist_filtre_les_traitements_de_la_page_1(self):
+        data = self._donnees_checklist({"a", "b"})
+        r = self.client.post(reverse("missions:questionnaire_checklist", args=[self.mission.pk]), data)
+        self.assertRedirects(r, reverse("missions:questionnaire_page", args=[self.mission.pk, 1]))
+
+        r = self.client.get(reverse("missions:questionnaire_page", args=[self.mission.pk, 1]))
+        codes = {ligne.reponse.traitement for _, ligne in r.context["lignes"]}
+        self.assertEqual(codes, {"a", "b"})
+
+    def test_traitements_non_declares_classes_non_conformes(self):
+        data = self._donnees_checklist({"a"})
+        self.client.post(reverse("missions:questionnaire_checklist", args=[self.mission.pk]), data)
+
+        self.mission.refresh_from_db()
+        for reponse in self.mission.reponses.all():
+            if reponse.traitement == "a":
+                self.assertEqual(reponse.evaluation, "")
+            else:
+                self.assertEqual(reponse.evaluation, EvaluationConformite.NC)
+
+    def test_re_declarer_ne_touche_pas_a_une_evaluation_deja_forcee(self):
+        """Une fois classé NC par la checkliste, cocher le traitement comme
+        déclaré ensuite ne doit pas modifier l'évaluation déjà enregistrée —
+        seule l'évaluation manuelle (page dédiée) le fait."""
+        self.client.post(
+            reverse("missions:questionnaire_checklist", args=[self.mission.pk]),
+            self._donnees_checklist(set()),
+        )
+        reponse_a = self.mission.reponses.get(traitement="a")
+        self.assertEqual(reponse_a.evaluation, EvaluationConformite.NC)
+
+        self.client.post(
+            reverse("missions:questionnaire_checklist", args=[self.mission.pk]),
+            self._donnees_checklist({"a"}),
+        )
+        reponse_a.refresh_from_db()
+        self.assertEqual(reponse_a.evaluation, EvaluationConformite.NC)
 
 
 @override_settings(MEDIA_ROOT=MEDIA_ROOT_TEST)

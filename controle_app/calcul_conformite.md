@@ -71,6 +71,17 @@ score (%) = (critères respectés / critères applicables) × 100
 Ces paliers (100/70/40) sont arbitraires — aucune référence officielle n'a
 été fournie. À ajuster si l'APDPVP dispose d'une grille de notation propre.
 
+### Règle bloquante : traitement non déclaré
+
+Le critère 1 (« Déclaration effectuée », `page1.declaration_effectuee`) est
+**bloquant** : si `False`, le verdict suggéré ne peut jamais être CTO ou CPA
+(conformité totale/partielle), quel que soit le score obtenu sur les autres
+critères — un traitement non déclaré n'est jamais jugé conforme. Si le score
+plafonnait déjà à NC ou CPR, cette règle ne change rien (elle ne peut
+qu'abaisser un verdict CTO/CPA à NC, jamais l'aggraver jusqu'à CPR ni
+l'améliorer). Le score (%) reste calculé et affiché normalement (détail de
+la checklist), seul le verdict final est éventuellement plafonné.
+
 ## Limites connues
 
 - **Ambiguïté des booléens** : un champ à `False` peut vouloir dire « non
@@ -80,9 +91,10 @@ Ces paliers (100/70/40) sont arbitraires — aucune référence officielle n'a
 - **Critères fixes, non pondérés** : chaque critère compte pour 1, quelle
   que soit sa gravité réelle (ex. l'absence de mesures de sécurité et
   l'absence de durée de conservation documentée pèsent pareil).
-- **Aucun critère « bloquant »** : un seul manquement grave (ex. transfert
-  de données sans autorité de protection documentée) ne force pas
-  automatiquement un CPR — il ne fait que baisser le score comme les autres.
+- **Un seul critère bloquant** : seule l'absence de déclaration force le
+  verdict à NC (voir ci-dessus). Les autres manquements graves (ex. transfert
+  de données sans autorité de protection documentée) ne font que baisser le
+  score comme les autres critères, sans forcer de verdict.
 - **Aucun total applicable = 0** : si aucun critère ne s'applique à un
   traitement (n'arrive pas avec la checklist actuelle, tous les traitements
   ont au moins les 6 critères communs), la fonction renvoie `verdict: None`

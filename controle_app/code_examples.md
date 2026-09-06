@@ -266,19 +266,15 @@ tard.
 Trois façons selon le type de relation, **toujours appliquées au niveau
 modèle**, jamais seulement dans les vues.
 
-### a) FK simple avec champs sensibles (MissionControle elle-même)
+### a) Champ simple sensible (MissionControle elle-même)
 
 ```python
 def save(self, *args, **kwargs):
     if self.pk:
         ancien = MissionControle.objects.get(pk=self.pk)
         if ancien.est_verrouillee:
-            champs_proteges = ["date_mission", "entite_controlee_id"]
-            for champ in champs_proteges:
-                if getattr(ancien, champ) != getattr(self, champ):
-                    raise ValidationError(
-                        f"Impossible de modifier '{champ}' : mission verrouillée."
-                    )
+            if ancien.date_mission != self.date_mission:
+                raise ValidationError("Impossible de modifier 'date_mission' : mission verrouillée.")
     super().save(*args, **kwargs)
 ```
 
@@ -336,6 +332,24 @@ class MembreGroupeControle(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
 ```
+
+### d) `ManyToManyField` nu, sans `through` (`MissionControle.entites_controlees`)
+
+Sans modèle `through` explicite, il n'y a pas de `save()`/`clean()` à
+intercepter sur les lignes de la table pivot — Django la gère lui-même.
+Seul le signal `m2m_changed` (`missions/signals.py`) voit les
+`.add()`/`.remove()`/`.set()` :
+
+```python
+@receiver(m2m_changed, sender=MissionControle.entites_controlees.through)
+def proteger_entites_controlees_si_verrouillee(sender, instance, action, **kwargs):
+    if action in {"pre_add", "pre_remove", "pre_clear"} and instance.pk and instance.est_verrouillee:
+        raise ValidationError("Impossible de modifier les entités contrôlées : mission verrouillée.")
+```
+
+`MissionControle.entites_controlees.through` reste utilisable même sans
+`through` explicite — Django en génère un automatiquement, seulement pas
+adressable comme un modèle à soi (pas de `clean()` à y ajouter).
 
 ---
 

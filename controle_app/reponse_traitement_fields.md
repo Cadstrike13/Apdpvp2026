@@ -33,7 +33,7 @@ Chaque `ReponseTraitement` (mission, traitement) a 5 sous-modèles en
 | `methode_consentement` | text | Méthode de consentement | tous |
 | `droits_respectes` | bool | Droits des personnes respectés ? | tous |
 | `dispositions_legales_derogatoires` | bool | Dispositions légales dérogatoires au droit des personnes ? | tous |
-| `type_objet_geolocalise` | char | Type d'objet géolocalisé (véhicule, téléphone) | **j) uniquement** |
+| `type_objet_geolocalise` | char | Appareil géolocalisé (véhicule, téléphone) | **j) uniquement** |
 | `desactivation_geoloc_pause` | bool | Désactivation possible pendant la pause ? | **j) uniquement** |
 
 ## Page 2 — Vidéosurveillance & sous-traitance (`ReponsePage2`)

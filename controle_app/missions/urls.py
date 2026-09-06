@@ -11,6 +11,10 @@ urlpatterns = [
     path("<int:mission_pk>/", views.mission_detail, name="mission_detail"),
     path("<int:mission_pk>/membres/ajouter/", views.membre_ajouter, name="membre_ajouter"),
     path("<int:mission_pk>/personnes/ajouter/", views.personne_ajouter, name="personne_ajouter"),
+    path(
+        "<int:mission_pk>/questionnaire/traitements-declares/",
+        views.questionnaire_checklist, name="questionnaire_checklist",
+    ),
     path("<int:mission_pk>/questionnaire/<int:page>/", views.questionnaire_page, name="questionnaire_page"),
     path("<int:mission_pk>/observations/modifier/", views.observations_modifier, name="observations_modifier"),
     path("<int:mission_pk>/infos-pv/modifier/", views.infos_pv_modifier, name="infos_pv_modifier"),

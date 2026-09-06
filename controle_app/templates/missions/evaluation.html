@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="mb-4">
-  <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">{{ mission.entite_controlee }} — Évaluation</h1>
+  <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">{{ mission.entites_str }} — Évaluation</h1>
   <p class="text-gray-500 text-sm">Verdict et observations par traitement — alimente le procès-verbal.</p>
   <a href="{% url 'missions:mission_detail' mission.pk %}" class="inline-block mt-3 px-3 py-1.5 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors text-sm">
     ← Retour à la mission
