@@ -6,6 +6,7 @@ app_name = "missions"
 
 urlpatterns = [
     path("", views.mission_list, name="mission_list"),
+    path("tableau-de-bord/", views.dashboard, name="dashboard"),
     path("nouvelle/", views.mission_create, name="mission_create"),
     path("<int:mission_pk>/", views.mission_detail, name="mission_detail"),
     path("<int:mission_pk>/membres/ajouter/", views.membre_ajouter, name="membre_ajouter"),

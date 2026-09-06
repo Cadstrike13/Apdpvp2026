@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}{{ entite }} — APDPVP{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <a href="{% url 'entites:entite_list' %}" class="text-sm text-blue-600 hover:text-blue-800">← Entités contrôlées</a>
+  <h1 class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1">{{ entite }}</h1>
+</div>
+
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+  <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
+    <p class="text-xs text-gray-500">Missions de contrôle</p>
+    <p class="text-2xl font-semibold text-gray-900">{{ nb_missions }}</p>
+  </div>
+  <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
+    <p class="text-xs text-gray-500">Taux de conformité</p>
+    {% if taux_conformite_global is not None %}
+      <p class="text-2xl font-semibold text-gray-900">{{ taux_conformite_global }}%</p>
+      <p class="text-[11px] text-gray-400">{{ total_evalue_entite }} traitement{{ total_evalue_entite|pluralize }} évalué{{ total_evalue_entite|pluralize }}</p>
+    {% else %}
+      <p class="text-2xl font-semibold text-gray-300">—</p>
+      <p class="text-[11px] text-gray-400">Aucune évaluation</p>
+    {% endif %}
+  </div>
+  <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
+    <p class="text-xs text-gray-500">Dernier contrôle</p>
+    {% if missions_info %}
+      <p class="text-base font-semibold text-gray-900">{{ missions_info.0.mission.date_mission }}</p>
+      <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium {{ missions_info.0.mission.statut_css_classes }}">
+        {{ missions_info.0.mission.get_statut_display }}
+      </span>
+    {% else %}
+      <p class="text-base text-gray-300">—</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="bg-white shadow-sm border border-gray-100 rounded-lg p-5 mb-6">
+  <h2 class="text-sm font-semibold text-gray-900 mb-1">Traitements audités (a→j)</h2>
+  <p class="text-xs text-gray-500 mb-4">Cumul sur l'ensemble des missions de cette structure</p>
+  <div class="flex flex-wrap gap-2">
+    {% for t in traitements %}
+    <span title="{{ t.label }}"
+          class="px-2 py-1 rounded text-xs font-semibold
+                 {% if t.couvert %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-400{% endif %}">
+      {{ t.code }}) {{ t.label }}
+    </span>
+    {% endfor %}
+  </div>
+</div>
+
+{% if personnes %}
+<div class="bg-white shadow-sm border border-gray-100 rounded-lg p-5 mb-6">
+  <h2 class="text-sm font-semibold text-gray-900 mb-4">Personnes rencontrées lors des contrôles</h2>
+  <ul class="text-sm divide-y divide-gray-100">
+    {% for p in personnes %}
+    <li class="py-2 flex items-center justify-between gap-3">
+      <span class="text-gray-900">
+        {{ p.personne }}{% if p.poste %} <span class="text-gray-500">— {{ p.poste }}</span>{% endif %}
+      </span>
+      <span class="text-gray-400 text-xs whitespace-nowrap">{{ p.nb_missions }} mission{{ p.nb_missions|pluralize }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="bg-white shadow-sm border border-gray-100 rounded-lg overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-left text-gray-600">
+      <tr>
+        <th class="px-4 py-3 font-medium">Date</th>
+        <th class="px-4 py-3 font-medium">Statut</th>
+        <th class="px-4 py-3 font-medium">Conformité</th>
+        <th class="px-4 py-3 font-medium">Documents</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for info in missions_info %}
+      <tr class="hover:bg-gray-50 transition-colors">
+        <td class="px-4 py-3 text-gray-900">{{ info.mission.date_mission }}</td>
+        <td class="px-4 py-3">
+          <span class="px-2 py-1 rounded-full text-xs font-medium {{ info.mission.statut_css_classes }}">
+            {{ info.mission.get_statut_display }}
+          </span>
+        </td>
+        <td class="px-4 py-3">
+          {% if info.taux_conformite is not None %}
+            <span class="font-medium
+                         {% if info.taux_conformite >= 70 %}text-green-700
+                         {% elif info.taux_conformite >= 40 %}text-amber-700
+                         {% else %}text-red-700{% endif %}">
+              {{ info.taux_conformite }}%
+            </span>
+          {% else %}
+            <span class="text-gray-400">—</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {% if info.mission.pv_document %}
+            <a href="{{ info.mission.pv_document.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV (.docx)</a>
+            {% endif %}
+            {% if info.mission.pv_document_pdf %}
+            <a href="{{ info.mission.pv_document_pdf.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV (.pdf)</a>
+            {% endif %}
+            {% if info.mission.scan_signe %}
+            <a href="{{ info.mission.scan_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV signé</a>
+            {% endif %}
+            {% if info.mission.rapport_signe %}
+            <a href="{{ info.mission.rapport_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">Rapport signé</a>
+            {% endif %}
+            {% if not info.mission.pv_document and not info.mission.scan_signe and not info.mission.rapport_signe %}
+            <span class="text-gray-400">—</span>
+            {% endif %}
+          </div>
+        </td>
+        <td class="px-4 py-3 text-right">
+          <a href="{% url 'missions:mission_detail' info.mission.pk %}" class="text-blue-600 hover:text-blue-800 font-medium">
+            Ouvrir →
+          </a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">Aucun contrôle pour cette entité.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

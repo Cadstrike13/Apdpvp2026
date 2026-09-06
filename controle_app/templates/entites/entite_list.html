@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Entités contrôlées — APDPVP{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+  <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">Entités contrôlées</h1>
+  <form method="get" class="flex items-center gap-2">
+    <input type="search" name="q" value="{{ q }}" placeholder="Rechercher une entité…"
+           class="rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500">
+    <button type="submit"
+            class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm">
+      Rechercher
+    </button>
+  </form>
+</div>
+
+<div class="bg-white shadow-sm border border-gray-100 rounded-lg overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-left text-gray-600">
+      <tr>
+        <th class="px-4 py-3 font-medium">Entité</th>
+        <th class="px-4 py-3 font-medium">Missions</th>
+        <th class="px-4 py-3 font-medium">Dernier contrôle</th>
+        <th class="px-4 py-3 font-medium">Conformité</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for ligne in lignes %}
+      <tr class="hover:bg-gray-50 transition-colors">
+        <td class="px-4 py-3 text-gray-900 font-medium">{{ ligne.entite }}</td>
+        <td class="px-4 py-3 text-gray-600">{{ ligne.nb_missions }}</td>
+        <td class="px-4 py-3">
+          {% if ligne.derniere_mission %}
+            <span class="text-gray-600">{{ ligne.derniere_mission.date_mission }}</span>
+            <span class="block mt-1 px-2 py-0.5 rounded-full text-xs font-medium w-fit {{ ligne.derniere_mission.statut_css_classes }}">
+              {{ ligne.derniere_mission.get_statut_display }}
+            </span>
+          {% else %}
+            <span class="text-gray-400">—</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if ligne.taux_conformite is not None %}
+            <span class="font-medium
+                         {% if ligne.taux_conformite >= 70 %}text-green-700
+                         {% elif ligne.taux_conformite >= 40 %}text-amber-700
+                         {% else %}text-red-700{% endif %}">
+              {{ ligne.taux_conformite }}%
+            </span>
+          {% else %}
+            <span class="text-gray-400">—</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-right">
+          <a href="{% url 'entites:entite_detail' ligne.entite.pk %}" class="text-blue-600 hover:text-blue-800 font-medium">
+            Voir →
+          </a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">Aucune entité{% if q %} pour « {{ q }} »{% endif %}.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

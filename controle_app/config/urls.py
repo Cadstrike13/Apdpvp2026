@@ -10,6 +10,7 @@ urlpatterns = [
     path("accounts/", include("django.contrib.auth.urls")),
     path("", index, name="index"),
     path("missions/", include("missions.urls")),
+    path("entites/", include("entites.urls")),
 ]
 
 if settings.DEBUG:

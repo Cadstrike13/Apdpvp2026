@@ -1,12 +1,13 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}APDPVP RH{% endblock %}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+  <script src="{% static 'js/htmx.min.js' %}"></script>
+  <script src="{% static 'js/lucide.min.js' %}"></script>
   <style>
     .app-form input, .app-form select, .app-form textarea {
       width: 100%; border: 1px solid #d1d5db; border-radius: .5rem; padding: .5rem .75rem;

@@ -1,10 +1,13 @@
 import os
 import tempfile
+from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.files import File
+from django.db.models import Count, Q
+from django.db.models.functions import TruncMonth
 from django.http import Http404
 from django.shortcuts import redirect, render
 
@@ -28,9 +31,9 @@ from .forms import (
     ScanSigneForm,
 )
 from .generate_pv import generate_pv
-from .models import EvaluationConformite, MembreGroupeControle, MissionControle, PersonneInterrogee, \
-    ReponsePage1, ReponsePage2, ReponsePage3, ReponsePage4, ReponsePage5, RoleMission, StatutMission, \
-    TypeAction, journaliser
+from .models import EvaluationConformite, MembreGroupeControle, MissionControle, \
+    PersonneInterrogee, ReponsePage1, ReponsePage2, ReponsePage3, ReponsePage4, ReponsePage5, \
+    ReponseTraitement, RoleMission, StatutMission, Traitement, TypeAction, journaliser
 
 QUESTIONNAIRE_PAGES = {
     1: {"model": ReponsePage1, "formset": Page1FormSet, "template": "missions/questionnaire_page1.html"},
@@ -49,6 +52,172 @@ def _erreurs_en_message(form):
 def mission_list(request):
     missions = MissionControle.objects.select_related("entite_controlee").order_by("-date_mission")
     return render(request, "missions/mission_list.html", {"missions": missions})
+
+
+VERDICTS_CONFORMES = [EvaluationConformite.CTO, EvaluationConformite.CPA]
+PERIODES_DASHBOARD_MOIS = {"3": 3, "6": 6, "12": 12, "24": 24}
+
+# Couleurs pleines pour les barres du tableau de bord — distinctes de
+# COULEURS_STATUT (fond clair + texte foncé, utilisé pour les badges).
+COULEURS_BARRE_STATUT = {
+    StatutMission.BROUILLON: "bg-gray-300",
+    StatutMission.PLANIFIEE: "bg-blue-500",
+    StatutMission.EN_COURS: "bg-blue-500",
+    StatutMission.QUESTIONNAIRE_COMPLETE: "bg-blue-500",
+    StatutMission.PV_GENERE: "bg-amber-500",
+    StatutMission.PV_SCAN_UPLOAD: "bg-amber-500",
+    StatutMission.RAPPORT_GENERE: "bg-amber-500",
+    StatutMission.RAPPORT_SCAN_UPLOAD: "bg-amber-500",
+    StatutMission.VALIDEE: "bg-green-500",
+}
+
+
+def _mois_glissants(nombre_mois, aujourdhui=None):
+    """Liste (ordre chronologique) du 1er jour de chacun des `nombre_mois`
+    derniers mois, mois courant inclus — sert d'axe complet pour le graphe
+    d'évolution même sur les mois sans mission."""
+    aujourdhui = aujourdhui or date.today()
+    annee, mois = aujourdhui.year, aujourdhui.month
+    resultat = []
+    for _ in range(nombre_mois):
+        resultat.append(date(annee, mois, 1))
+        mois -= 1
+        if mois == 0:
+            mois = 12
+            annee -= 1
+    return list(reversed(resultat))
+
+
+@login_required
+def dashboard(request):
+    """Statistiques des missions de contrôle : avancement, répartition par
+    statut, taux de conformité (global, par traitement et dans le temps).
+    Filtrable par période via ?periode=3|6|12|24|all (12 mois par défaut)."""
+    periode = request.GET.get("periode", "12")
+    if periode not in PERIODES_DASHBOARD_MOIS and periode != "all":
+        periode = "12"
+
+    missions_qs = MissionControle.objects.all()
+    mois_axe = None
+    if periode != "all":
+        mois_axe = _mois_glissants(PERIODES_DASHBOARD_MOIS[periode])
+        missions_qs = missions_qs.filter(date_mission__gte=mois_axe[0])
+
+    total_missions = missions_qs.count()
+
+    compte_par_statut = {
+        ligne["statut"]: ligne["total"]
+        for ligne in missions_qs.values("statut").annotate(total=Count("id"))
+    }
+    repartition_statuts = [
+        {
+            "label": statut.label,
+            "total": compte_par_statut.get(statut.value, 0),
+            "pourcentage": round(compte_par_statut.get(statut.value, 0) * 100 / total_missions) if total_missions else 0,
+            "css_barre": COULEURS_BARRE_STATUT.get(statut, "bg-gray-300"),
+        }
+        for statut in StatutMission
+    ]
+    missions_validees = compte_par_statut.get(StatutMission.VALIDEE.value, 0)
+    missions_en_cours = total_missions - missions_validees
+
+    reponses_qs = ReponseTraitement.objects.filter(mission__in=missions_qs).exclude(evaluation="")
+    total_evaluees = reponses_qs.count()
+    conformes = reponses_qs.filter(evaluation__in=VERDICTS_CONFORMES).count()
+    taux_conformite_global = round(conformes * 100 / total_evaluees) if total_evaluees else None
+
+    reponses_avancement = ReponseTraitement.objects.filter(mission__in=missions_qs).select_related(
+        "page1", "page2", "page3", "page4", "page5"
+    )
+    pourcentages_avancement = [r.pourcentage_complete for r in reponses_avancement]
+    avancement_moyen = round(sum(pourcentages_avancement) / len(pourcentages_avancement)) if pourcentages_avancement else 0
+
+    conformite_par_traitement = []
+    for code, label in Traitement.choices:
+        reponses_traitement = reponses_qs.filter(traitement=code)
+        total_t = reponses_traitement.count()
+        conformes_t = reponses_traitement.filter(evaluation__in=VERDICTS_CONFORMES).count()
+        conformite_par_traitement.append({
+            "label": label,
+            "total_evalue": total_t,
+            "taux": round(conformes_t * 100 / total_t) if total_t else None,
+        })
+
+    missions_par_mois = {
+        ligne["mois"]: ligne["total"]
+        for ligne in missions_qs.annotate(mois=TruncMonth("date_mission")).values("mois").annotate(total=Count("id"))
+    }
+    reponses_par_mois = {
+        ligne["mois"]: ligne
+        for ligne in (
+            reponses_qs.annotate(mois=TruncMonth("mission__date_mission"))
+            .values("mois")
+            .annotate(total=Count("id"), conformes=Count("id", filter=Q(evaluation__in=VERDICTS_CONFORMES)))
+        )
+    }
+    if mois_axe is None:
+        mois_axe = sorted(set(missions_par_mois) | {m for m in reponses_par_mois if m})
+
+    max_missions_mois = max(missions_par_mois.values(), default=0)
+    evolution = []
+    for mois in mois_axe:
+        total_mois = missions_par_mois.get(mois, 0)
+        ligne_reponses = reponses_par_mois.get(mois)
+        taux_mois = (
+            round(ligne_reponses["conformes"] * 100 / ligne_reponses["total"])
+            if ligne_reponses and ligne_reponses["total"]
+            else None
+        )
+        evolution.append({
+            "mois": mois,
+            "total_missions": total_mois,
+            "hauteur_missions": round(total_mois * 100 / max_missions_mois) if max_missions_mois else 0,
+            "taux_conformite": taux_mois,
+        })
+
+    structures = []
+    entites_controlees = (
+        EntiteControlee.objects.filter(missions__in=missions_qs).distinct().order_by("nom")
+    )
+    for entite in entites_controlees:
+        missions_entite = missions_qs.filter(entite_controlee=entite).order_by("-date_mission")
+        derniere_mission = missions_entite.select_related("entite_controlee").first()
+        reponses_entite = reponses_qs.filter(mission__entite_controlee=entite)
+        total_eval_entite = reponses_entite.count()
+        conformes_entite = reponses_entite.filter(evaluation__in=VERDICTS_CONFORMES).count()
+        traitements_couverts = set(reponses_entite.values_list("traitement", flat=True))
+        structures.append({
+            "entite": entite,
+            "nb_missions": missions_entite.count(),
+            "derniere_mission": derniere_mission,
+            "taux_conformite": round(conformes_entite * 100 / total_eval_entite) if total_eval_entite else None,
+            "total_evalue": total_eval_entite,
+            "traitements": [
+                {"code": code, "label": label, "couvert": code in traitements_couverts}
+                for code, label in Traitement.choices
+            ],
+        })
+    structures.sort(
+        key=lambda s: s["derniere_mission"].date_mission if s["derniere_mission"] else date.min, reverse=True
+    )
+
+    return render(
+        request,
+        "missions/dashboard.html",
+        {
+            "periode": periode,
+            "total_missions": total_missions,
+            "missions_validees": missions_validees,
+            "missions_en_cours": missions_en_cours,
+            "taux_conformite_global": taux_conformite_global,
+            "total_evaluees": total_evaluees,
+            "avancement_moyen": avancement_moyen,
+            "repartition_statuts": repartition_statuts,
+            "conformite_par_traitement": conformite_par_traitement,
+            "evolution": evolution,
+            "structures": structures,
+        },
+    )
 
 
 @login_required
