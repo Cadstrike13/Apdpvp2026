@@ -34,10 +34,10 @@
   </div>
   <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
     <p class="text-xs text-gray-500">Dernier contrôle</p>
-    {% if missions_info %}
-      <p class="text-base font-semibold text-gray-900">{{ missions_info.0.mission.date_mission }}</p>
-      <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium {{ missions_info.0.mission.statut_css_classes }}">
-        {{ missions_info.0.mission.get_statut_display }}
+    {% if controles_info %}
+      <p class="text-base font-semibold text-gray-900">{{ controles_info.0.controle.mission.date_mission }}</p>
+      <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium {{ controles_info.0.controle.statut_css_classes }}">
+        {{ controles_info.0.controle.get_statut_display }}
       </span>
     {% else %}
       <p class="text-base text-gray-300">—</p>
@@ -87,12 +87,12 @@
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-100">
-      {% for info in missions_info %}
+      {% for info in controles_info %}
       <tr class="hover:bg-gray-50 transition-colors">
-        <td class="px-4 py-3 text-gray-900">{{ info.mission.date_mission }}</td>
+        <td class="px-4 py-3 text-gray-900">{{ info.controle.mission.date_mission }}</td>
         <td class="px-4 py-3">
-          <span class="px-2 py-1 rounded-full text-xs font-medium {{ info.mission.statut_css_classes }}">
-            {{ info.mission.get_statut_display }}
+          <span class="px-2 py-1 rounded-full text-xs font-medium {{ info.controle.statut_css_classes }}">
+            {{ info.controle.get_statut_display }}
           </span>
         </td>
         <td class="px-4 py-3">
@@ -109,28 +109,28 @@
         </td>
         <td class="px-4 py-3">
           <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-            {% if info.mission.ordre_mission %}
-            <a href="{{ info.mission.ordre_mission.url }}" class="text-blue-600 hover:text-blue-800 font-medium">Ordre de mission</a>
+            {% if info.controle.mission.ordre_mission %}
+            <a href="{{ info.controle.mission.ordre_mission.url }}" class="text-blue-600 hover:text-blue-800 font-medium">Ordre de mission</a>
             {% endif %}
-            {% if info.mission.pv_document %}
-            <a href="{{ info.mission.pv_document.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV (.docx)</a>
+            {% if info.controle.pv_document %}
+            <a href="{{ info.controle.pv_document.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV (.docx)</a>
             {% endif %}
-            {% if info.mission.pv_document_pdf %}
-            <a href="{{ info.mission.pv_document_pdf.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV (.pdf)</a>
+            {% if info.controle.pv_document_pdf %}
+            <a href="{{ info.controle.pv_document_pdf.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV (.pdf)</a>
             {% endif %}
-            {% if info.mission.scan_signe %}
-            <a href="{{ info.mission.scan_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV signé</a>
+            {% if info.controle.scan_signe %}
+            <a href="{{ info.controle.scan_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">PV signé</a>
             {% endif %}
-            {% if info.mission.rapport_signe %}
-            <a href="{{ info.mission.rapport_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">Rapport signé</a>
+            {% if info.controle.rapport_signe %}
+            <a href="{{ info.controle.rapport_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">Rapport signé</a>
             {% endif %}
-            {% if not info.mission.ordre_mission and not info.mission.pv_document and not info.mission.scan_signe and not info.mission.rapport_signe %}
+            {% if not info.controle.mission.ordre_mission and not info.controle.pv_document and not info.controle.scan_signe and not info.controle.rapport_signe %}
             <span class="text-gray-400">—</span>
             {% endif %}
           </div>
         </td>
         <td class="px-4 py-3 text-right">
-          <a href="{% url 'missions:mission_detail' info.mission.pk %}" class="text-blue-600 hover:text-blue-800 font-medium">
+          <a href="{% url 'missions:controle_entite_detail' info.controle.pk %}" class="text-blue-600 hover:text-blue-800 font-medium">
             Ouvrir →
           </a>
         </td>

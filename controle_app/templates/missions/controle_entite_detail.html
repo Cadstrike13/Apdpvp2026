@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+  <div>
+    <a href="{% url 'missions:mission_detail' controle.mission.pk %}" class="text-sm text-blue-600 hover:text-blue-800">← Mission du {{ controle.mission.date_mission }}</a>
+    <h1 class="text-xl sm:text-2xl font-semibold text-gray-900 mt-1">{{ controle.entite }}</h1>
+    <p class="text-gray-500 text-sm">
+      <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ controle.statut_css_classes }}">
+        {{ controle.get_statut_display }}
+      </span>
+    </p>
+  </div>
+  {% if controle.est_verrouillee %}
+  <span class="rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-sm h-fit font-medium">🔒 Verrouillé</span>
+  {% endif %}
+</div>
+
+<div class="grid gap-6 md:grid-cols-2">
+  <section class="bg-white shadow-sm border border-gray-100 rounded-lg p-6">
+    <h2 class="font-semibold mb-4 text-gray-900">Questionnaire</h2>
+    <div class="flex flex-wrap gap-2 mb-5">
+      <a href="{% url 'missions:questionnaire_checklist' controle.pk %}"
+         class="px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-sm font-medium">
+        Traitements déclarés
+      </a>
+      {% for p in page_range %}
+      <a href="{% url 'missions:questionnaire_page' controle.pk p %}"
+         class="px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-sm font-medium">
+        Page {{ p }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <p class="text-xs font-medium text-gray-500 mb-2">Avancement par traitement</p>
+    <div class="space-y-2">
+      {% for reponse in reponses %}
+      <div>
+        <div class="flex justify-between text-xs text-gray-600 mb-1">
+          <span>{{ reponse.get_traitement_display }}</span>
+          {% if reponse.page1.declaration_effectuee %}
+          <span>{{ reponse.pourcentage_complete }}%</span>
+          {% else %}
+          <span class="text-amber-700">Non déclaré</span>
+          {% endif %}
+        </div>
+        {% if reponse.page1.declaration_effectuee %}
+        <div class="w-full bg-gray-100 rounded-full h-2">
+          <div class="h-2 rounded-full transition-all
+                      {% if reponse.pourcentage_complete == 100 %}bg-green-500
+                      {% elif reponse.pourcentage_complete > 0 %}bg-blue-500
+                      {% else %}bg-gray-300{% endif %}"
+               style="width: {{ reponse.pourcentage_complete }}%"></div>
+        </div>
+        {% else %}
+        <div class="w-full bg-amber-100 rounded-full h-2"></div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if est_chef %}
+    <a href="{% url 'missions:evaluation_page' controle.pk %}"
+       class="inline-block mt-4 px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-sm font-medium">
+      Évaluer les traitements (verdict + observations) →
+    </a>
+    {% endif %}
+  </section>
+
+  <section class="bg-white shadow-sm border border-gray-100 rounded-lg p-6">
+    <h2 class="font-semibold mb-4 text-gray-900">Groupe de contrôle</h2>
+    <ul class="space-y-1 text-sm mb-4 text-gray-700">
+      {% for membre in controle.membres_groupe.all %}
+      <li>{{ membre.agent }} — <span class="text-gray-500">{{ membre.get_role_display }}</span></li>
+      {% empty %}
+      <li class="text-gray-500">Aucun membre pour l'instant.</li>
+      {% endfor %}
+    </ul>
+    {% if not controle.est_verrouillee %}
+    <form method="post" action="{% url 'missions:membre_ajouter' controle.pk %}" class="flex gap-2 items-end flex-wrap">
+      {% csrf_token %}
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ membre_form.agent.label }}</label>
+        {{ membre_form.agent }}
+      </div>
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ membre_form.role.label }}</label>
+        {{ membre_form.role }}
+      </div>
+      <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
+        Ajouter
+      </button>
+    </form>
+    {% endif %}
+  </section>
+
+  <section class="bg-white shadow-sm border border-gray-100 rounded-lg p-6">
+    <h2 class="font-semibold mb-4 text-gray-900">Personnes interrogées</h2>
+    <ul class="space-y-1 text-sm mb-4 text-gray-700">
+      {% for pi in controle.personnes_interrogees.all %}
+      <li>{{ pi.personne }}{% if pi.poste_snapshot %} — <span class="text-gray-500">{{ pi.poste_snapshot }}</span>{% endif %}</li>
+      {% empty %}
+      <li class="text-gray-500">Aucune personne interrogée pour l'instant.</li>
+      {% endfor %}
+    </ul>
+    {% if not controle.est_verrouillee %}
+    <button type="button" onclick="document.getElementById('modale-personne').classList.remove('hidden')"
+            class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
+      + Ajouter une personne interrogée
+    </button>
+
+    <div id="modale-personne" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-lg shadow-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-gray-900">Ajouter une personne interrogée</h3>
+          <button type="button" onclick="document.getElementById('modale-personne').classList.add('hidden')"
+                  class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        </div>
+        <form method="post" action="{% url 'missions:personne_ajouter' controle.pk %}" class="space-y-3">
+          {% csrf_token %}
+          <div>
+            <label class="block text-xs font-medium mb-1 text-gray-600">{{ personne_form.personne.label }}</label>
+            {{ personne_form.personne }}
+            <p class="text-xs text-gray-400 mt-1">{{ personne_form.personne.help_text }}</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+            <div>
+              <label class="block text-xs font-medium mb-1 text-gray-600">{{ personne_form.nom.label }}</label>
+              {{ personne_form.nom }}
+            </div>
+            <div>
+              <label class="block text-xs font-medium mb-1 text-gray-600">{{ personne_form.prenom.label }}</label>
+              {{ personne_form.prenom }}
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1 text-gray-600">{{ personne_form.email.label }}</label>
+            {{ personne_form.email }}
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1 text-gray-600">{{ personne_form.telephone.label }}</label>
+            {{ personne_form.telephone }}
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+            <div>
+              <label class="block text-xs font-medium mb-1 text-gray-600">{{ personne_form.poste_snapshot.label }}</label>
+              {{ personne_form.poste_snapshot }}
+            </div>
+            <div>
+              <label class="block text-xs font-medium mb-1 text-gray-600">{{ personne_form.service_snapshot.label }}</label>
+              {{ personne_form.service_snapshot }}
+            </div>
+          </div>
+          <p class="text-xs text-gray-400">Laissés vides, poste et service sont repris automatiquement de la fonction connue de la personne dans cette entité.</p>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" onclick="document.getElementById('modale-personne').classList.add('hidden')"
+                    class="px-3 py-2 rounded-md text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+              Annuler
+            </button>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
+              Ajouter
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="bg-white shadow-sm border border-gray-100 rounded-lg p-6">
+    <h2 class="font-semibold mb-4 text-gray-900">Journal</h2>
+    <ul class="space-y-1 text-sm text-gray-700">
+      {% for action in controle.journal.all %}
+      <li>
+        <span class="text-gray-400">{{ action.horodatage|date:"d/m/Y H:i" }}</span> —
+        {{ action.get_type_action_display }} <span class="text-gray-500">({{ action.utilisateur }})</span>
+      </li>
+      {% empty %}
+      <li class="text-gray-500">Aucune action journalisée.</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section id="observations" class="bg-white shadow-sm border border-gray-100 rounded-lg p-6 md:col-span-2 scroll-mt-6">
+    <h2 class="font-semibold mb-4 text-gray-900">Commentaires / observations</h2>
+    <p class="text-xs text-gray-500 mb-2">Propres à cette entité — toujours modifiables, y compris après verrouillage.</p>
+    <form method="post" action="{% url 'missions:observations_modifier' controle.pk %}" class="space-y-2">
+      {% csrf_token %}
+      {{ observations_form.commentaires_observations }}
+      <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
+        Enregistrer
+      </button>
+    </form>
+  </section>
+
+  {% if est_chef %}
+  <section class="bg-white shadow-sm border border-gray-100 rounded-lg p-6 md:col-span-2">
+    <h2 class="font-semibold mb-1 text-gray-900">Informations du procès-verbal</h2>
+    <p class="text-xs text-gray-500 mb-4">Nécessaires à la génération du PV — à compléter avant de le générer.</p>
+    <form method="post" action="{% url 'missions:infos_pv_modifier' controle.pk %}" class="grid gap-4 sm:grid-cols-2">
+      {% csrf_token %}
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ infos_pv_form.mode_pv.label }}</label>
+        {{ infos_pv_form.mode_pv }}
+      </div>
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ infos_pv_form.nom_representant_entite.label }}</label>
+        {{ infos_pv_form.nom_representant_entite }}
+      </div>
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ infos_pv_form.heure_controle.label }}</label>
+        {{ infos_pv_form.heure_controle }}
+      </div>
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ infos_pv_form.deliberation_numero.label }}</label>
+        {{ infos_pv_form.deliberation_numero }}
+      </div>
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ infos_pv_form.deliberation_organe.label }}</label>
+        {{ infos_pv_form.deliberation_organe }}
+      </div>
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ infos_pv_form.lieu_signature.label }}</label>
+        {{ infos_pv_form.lieu_signature }}
+      </div>
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ infos_pv_form.date_signature.label }}</label>
+        {{ infos_pv_form.date_signature }}
+      </div>
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ infos_pv_form.heure_signature.label }}</label>
+        {{ infos_pv_form.heure_signature }}
+      </div>
+      <div class="sm:col-span-2">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
+          Enregistrer
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="bg-white shadow-sm border border-gray-100 rounded-lg p-6 md:col-span-2">
+    <h2 class="font-semibold mb-1 text-gray-900">Procès-verbal, rapport & clôture</h2>
+    <p class="text-xs text-gray-500 mb-4">Circuit : procès-verbal généré → imprimé, signé, scanné → rapport généré → imprimé, signé, scanné → contrôle validé.</p>
+
+    {% if controle.mission.ordre_mission %}
+    <p class="text-sm mb-2">
+      Ordre de mission :
+      <a href="{{ controle.mission.ordre_mission.url }}" class="text-blue-600 hover:text-blue-800 font-medium">télécharger</a>
+    </p>
+    {% endif %}
+
+    {% if controle.pv_document %}
+    <p class="text-sm mb-2">
+      Procès-verbal généré :
+      <a href="{{ controle.pv_document.url }}" class="text-blue-600 hover:text-blue-800 font-medium">télécharger (.docx)</a>
+      {% if controle.pv_document_pdf %}
+      · <a href="{{ controle.pv_document_pdf.url }}" class="text-blue-600 hover:text-blue-800 font-medium">télécharger (.pdf)</a>
+      {% endif %}
+    </p>
+    {% endif %}
+
+    {% if controle.scan_signe %}
+    <p class="text-sm mb-2">
+      Procès-verbal signé :
+      <a href="{{ controle.scan_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">télécharger</a>
+    </p>
+    {% endif %}
+
+    {% if controle.rapport_signe %}
+    <p class="text-sm mb-4">
+      Rapport signé :
+      <a href="{{ controle.rapport_signe.url }}" class="text-blue-600 hover:text-blue-800 font-medium">télécharger</a>
+    </p>
+    {% elif rapport_marque_genere %}
+    <p class="text-sm mb-4">
+      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Rapport marqué comme généré</span>
+      {% if action_rapport_genere %}
+      <span class="text-gray-500 text-xs ml-1">
+        le {{ action_rapport_genere.horodatage|date:"d/m/Y H:i" }} par {{ action_rapport_genere.utilisateur }}
+      </span>
+      {% endif %}
+      <span class="block text-xs text-gray-400 mt-1">Document réel pas encore disponible — imprimez, faites signer, puis chargez le scan.</span>
+    </p>
+    {% endif %}
+
+    {% if questionnaire_incomplet %}
+    <p class="text-sm text-gray-500 mb-4">
+      Complétez le questionnaire (les 5 pages, jusqu'à l'enregistrement de la page 5) pour faire
+      apparaître le bouton de génération du procès-verbal.
+    </p>
+    {% endif %}
+
+    {% if peut_marquer_pv_genere %}
+    <button type="button" onclick="document.getElementById('modale-pv-generer').classList.remove('hidden')"
+            class="bg-amber-500 hover:bg-amber-600 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium mb-4">
+      Générer le procès-verbal
+    </button>
+
+    <div id="modale-pv-generer" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-lg shadow-lg max-w-sm w-full p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-gray-900">Générer le procès-verbal</h3>
+          <button type="button" onclick="document.getElementById('modale-pv-generer').classList.add('hidden')"
+                  class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        </div>
+        <p class="text-sm text-gray-600 mb-4">
+          Génère le document (.docx, .pdf si disponible) à partir du questionnaire et de
+          l'évaluation, puis <strong>verrouille ce contrôle</strong>. À imprimer, faire signer,
+          puis scanner.
+        </p>
+        <form method="post" action="{% url 'missions:pv_marquer_genere' controle.pk %}">
+          {% csrf_token %}
+          <div class="flex justify-end gap-2">
+            <button type="button" onclick="document.getElementById('modale-pv-generer').classList.add('hidden')"
+                    class="px-3 py-2 rounded-md text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+              Annuler
+            </button>
+            <button type="submit" class="bg-amber-500 hover:bg-amber-600 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
+              Générer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if peut_uploader_scan %}
+    <button type="button" onclick="document.getElementById('modale-scan-uploader').classList.remove('hidden')"
+            class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium mb-4">
+      Uploader le scan signé
+    </button>
+
+    <div id="modale-scan-uploader" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-lg shadow-lg max-w-sm w-full p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-gray-900">Uploader le procès-verbal signé</h3>
+          <button type="button" onclick="document.getElementById('modale-scan-uploader').classList.add('hidden')"
+                  class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        </div>
+        <form method="post" action="{% url 'missions:scan_uploader' controle.pk %}" enctype="multipart/form-data" class="space-y-3">
+          {% csrf_token %}
+          <div>
+            <label class="block text-xs font-medium mb-1 text-gray-600">Procès-verbal signé (PDF/JPG/PNG, 10 Mo max)</label>
+            <input type="file" name="scan_signe" accept=".pdf,.jpg,.jpeg,.png"
+                   class="block text-sm text-gray-600 bg-gray-50 rounded-md border border-gray-300 px-2 py-1.5 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 file:font-medium hover:file:bg-blue-100">
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" onclick="document.getElementById('modale-scan-uploader').classList.add('hidden')"
+                    class="px-3 py-2 rounded-md text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+              Annuler
+            </button>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
+              Envoyer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if peut_marquer_rapport_genere %}
+    <button type="button" onclick="document.getElementById('modale-rapport-generer').classList.remove('hidden')"
+            class="bg-amber-500 hover:bg-amber-600 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium mb-4">
+      Marquer le rapport comme généré
+    </button>
+
+    <div id="modale-rapport-generer" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-lg shadow-lg max-w-sm w-full p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-gray-900">Marquer le rapport comme généré</h3>
+          <button type="button" onclick="document.getElementById('modale-rapport-generer').classList.add('hidden')"
+                  class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        </div>
+        <p class="text-sm text-gray-600 mb-4">
+          La création automatique du rapport est <strong>en cours de développement</strong>.
+          En attendant, cette action marque le rapport comme généré — le vrai générateur Word
+          le remplacera plus tard. À imprimer, faire signer, puis scanner.
+        </p>
+        <form method="post" action="{% url 'missions:rapport_marquer_genere' controle.pk %}">
+          {% csrf_token %}
+          <div class="flex justify-end gap-2">
+            <button type="button" onclick="document.getElementById('modale-rapport-generer').classList.add('hidden')"
+                    class="px-3 py-2 rounded-md text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+              Annuler
+            </button>
+            <button type="submit" class="bg-amber-500 hover:bg-amber-600 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
+              Marquer comme généré
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if peut_uploader_rapport_signe %}
+    <button type="button" onclick="document.getElementById('modale-rapport-uploader').classList.remove('hidden')"
+            class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium mb-4">
+      Uploader le rapport signé
+    </button>
+
+    <div id="modale-rapport-uploader" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-lg shadow-lg max-w-sm w-full p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-gray-900">Uploader le rapport signé</h3>
+          <button type="button" onclick="document.getElementById('modale-rapport-uploader').classList.add('hidden')"
+                  class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        </div>
+        <form method="post" action="{% url 'missions:rapport_uploader' controle.pk %}" enctype="multipart/form-data" class="space-y-3">
+          {% csrf_token %}
+          <div>
+            <label class="block text-xs font-medium mb-1 text-gray-600">Rapport signé (PDF/JPG/PNG, 10 Mo max)</label>
+            <input type="file" name="rapport_signe" accept=".pdf,.jpg,.jpeg,.png"
+                   class="block text-sm text-gray-600 bg-gray-50 rounded-md border border-gray-300 px-2 py-1.5 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 file:font-medium hover:file:bg-blue-100">
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" onclick="document.getElementById('modale-rapport-uploader').classList.add('hidden')"
+                    class="px-3 py-2 rounded-md text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+              Annuler
+            </button>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
+              Envoyer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if peut_valider %}
+    <form method="post" action="{% url 'missions:controle_valider' controle.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="bg-green-600 hover:bg-green-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
+        ✓ Valider ce contrôle
+      </button>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

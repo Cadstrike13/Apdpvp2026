@@ -1,8 +1,7 @@
 from django import forms
 from django.core.validators import FileExtensionValidator
-from django.forms import BaseFormSet, formset_factory, modelformset_factory
+from django.forms import modelformset_factory
 
-from agents.models import AgentControleur
 from core.forms import TailwindForm, TailwindModelForm
 from core.validators import ValidateurTailleFichier
 from entites.models import EntiteControlee, SecteurActivite
@@ -11,6 +10,7 @@ from personnes.models import Personne
 from .models import (
     EXTENSIONS_SCAN_AUTORISEES,
     TAILLE_MAX_FICHIER_MO,
+    ControleEntite,
     MembreGroupeControle,
     MissionControle,
     ReponsePage1,
@@ -19,15 +19,15 @@ from .models import (
     ReponsePage4,
     ReponsePage5,
     ReponseTraitement,
-    RoleMission,
 )
 
 
 class MissionControleForm(TailwindForm):
-    """Informations générales de la mission : entité(s) contrôlée(s) —
-    une ou plusieurs, déjà connues et/ou nouvelle — date, ordre de mission.
-    Le groupe de contrôle (membres + chef) est un formulaire séparé,
-    voir MembreGroupeControleCreationFormSet ci-dessous."""
+    """Formulaire de l'admin : crée la mission et l'entité (ou les entités)
+    contrôlée(s) — une ligne ControleEntite est créée par entité, chacune
+    avec son propre circuit indépendant. L'affectation du groupe de
+    contrôle de chaque entité se fait ensuite depuis sa fiche (voir
+    controle_entite_detail / membre_ajouter)."""
 
     entites_controlees = forms.ModelMultipleChoiceField(
         queryset=EntiteControlee.objects.all(), required=False, label="Entités contrôlées",
@@ -41,9 +41,6 @@ class MissionControleForm(TailwindForm):
     )
     date_mission = forms.DateField(
         widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"), label="Date de la mission",
-    )
-    commentaires_observations = forms.CharField(
-        required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Commentaires / observations",
     )
     ordre_mission = forms.FileField(
         required=False, label="Ordre de mission",
@@ -62,59 +59,38 @@ class MissionControleForm(TailwindForm):
         return cleaned_data
 
 
+class AjouterEntiteForm(TailwindForm):
+    """Ajoute une entité (et donc un nouveau ControleEntite, avec son propre
+    circuit) à une mission existante — depuis la fiche mission (admin)."""
+
+    entite_controlee = forms.ModelChoiceField(
+        queryset=EntiteControlee.objects.all(), required=False, label="Entité déjà connue",
+        help_text="Laisser vide pour déclarer une nouvelle entité ci-dessous.",
+    )
+    nom_nouvelle_entite = forms.CharField(required=False, label="Nom de la nouvelle entité")
+    secteur_activite_nouvelle_entite = forms.ChoiceField(
+        choices=[("", "—")] + SecteurActivite.choices, required=False,
+        label="Secteur d'activité de la nouvelle entité",
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not cleaned_data.get("entite_controlee") and not cleaned_data.get("nom_nouvelle_entite"):
+            raise forms.ValidationError(
+                "Sélectionnez une entité déjà contrôlée ou renseignez le nom d'une nouvelle entité."
+            )
+        return cleaned_data
+
+
 class MembreGroupeControleForm(TailwindModelForm):
     class Meta:
         model = MembreGroupeControle
         fields = ["agent", "role"]
 
 
-class MembreInitialForm(TailwindForm):
-    """Ligne du groupe de contrôle saisie à la création de la mission.
-    Formulaire simple (pas un ModelForm sur MembreGroupeControle) : à ce
-    stade la mission n'existe pas encore, or MembreGroupeControle.clean()
-    exige une mission déjà assignée pour vérifier le verrouillage — les
-    lignes remplies sont donc converties en MembreGroupeControle (avec
-    save() donc clean()) seulement après coup, une fois la mission créée
-    (voir mission_create). Une ligne laissée vide est simplement ignorée."""
-
-    agent = forms.ModelChoiceField(queryset=AgentControleur.objects.all(), required=False, label="Agent")
-    role = forms.ChoiceField(choices=RoleMission.choices, required=False, label="Rôle")
-
-
-class BaseMembreInitialFormSet(BaseFormSet):
-    """Un seul chef de mission, et un agent au plus une fois — validé ici
-    plutôt que de laisser échouer la contrainte DB `un_seul_chef_par_mission`
-    avec un message peu clair."""
-
-    def clean(self):
-        super().clean()
-        if any(self.errors):
-            return
-        agents_vus = set()
-        nb_chefs = 0
-        for form in self.forms:
-            if not form.cleaned_data or form.cleaned_data.get("DELETE"):
-                continue
-            agent = form.cleaned_data.get("agent")
-            if not agent:
-                continue
-            if agent.pk in agents_vus:
-                raise forms.ValidationError("Un agent ne peut être ajouté qu'une seule fois au groupe de contrôle.")
-            agents_vus.add(agent.pk)
-            if form.cleaned_data.get("role") == RoleMission.CHEF:
-                nb_chefs += 1
-        if nb_chefs > 1:
-            raise forms.ValidationError("Un seul chef de mission peut être désigné.")
-
-
-MembreGroupeControleCreationFormSet = formset_factory(
-    MembreInitialForm, formset=BaseMembreInitialFormSet, extra=4, can_delete=True,
-)
-
-
 class PersonneInterrogeeForm(TailwindForm):
     """Sélectionner une personne existante OU en créer une nouvelle, plus les
-    infos propres à l'interrogatoire (poste/service au moment de la mission —
+    infos propres à l'interrogatoire (poste/service au moment du contrôle —
     pré-remplis depuis la Fonction active si laissés vides, voir missions/views.py)."""
 
     personne = forms.ModelChoiceField(
@@ -139,20 +115,20 @@ class PersonneInterrogeeForm(TailwindForm):
 
 class ObservationsForm(TailwindModelForm):
     class Meta:
-        model = MissionControle
+        model = ControleEntite
         fields = ["commentaires_observations"]
         widgets = {"commentaires_observations": forms.Textarea(attrs={"rows": 4})}
 
 
 class ScanSigneForm(TailwindModelForm):
     class Meta:
-        model = MissionControle
+        model = ControleEntite
         fields = ["scan_signe"]
 
 
 class RapportSigneForm(TailwindModelForm):
     class Meta:
-        model = MissionControle
+        model = ControleEntite
         fields = ["rapport_signe"]
 
 
@@ -161,7 +137,7 @@ class InfosPVForm(TailwindModelForm):
     des autres formulaires (voir missions/generate_pv.py)."""
 
     class Meta:
-        model = MissionControle
+        model = ControleEntite
         fields = [
             "mode_pv", "nom_representant_entite", "heure_controle",
             "deliberation_numero", "deliberation_organe",

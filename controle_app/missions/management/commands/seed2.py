@@ -12,6 +12,7 @@ from entites.models import EntiteControlee, SecteurActivite
 from personnes.models import Personne
 
 from ...models import (
+    ControleEntite,
     EvaluationConformite,
     MembreGroupeControle,
     MissionControle,
@@ -26,8 +27,9 @@ from ...models import (
 
 GRAINE_ALEATOIRE = 20260906  # déterministe : mêmes données à chaque exécution
 
-# Marqueur préfixé aux observations pour identifier — et donc dédupliquer —
-# les missions générées par cette commande (indépendante de seed_missions).
+# Marqueur préfixé aux observations de chaque ControleEntite pour identifier
+# — et donc dédupliquer — les contrôles générés par cette commande
+# (indépendante de seed_missions).
 MARQUEUR_SEED = "[Démo — seed2]"
 
 ENTITES_DEMO = [
@@ -50,9 +52,12 @@ PERSONNES_DEMO = [
 ]
 
 # Un scénario par statut du circuit (couverture complète du workflow), plus
-# deux missions multi-entités pour illustrer cette fonctionnalité. `entites`
-# prend 1 ou 2 index dans ENTITES_DEMO ; `nb_declares` fixe combien de
-# traitements sont cochés "déclarés" à la checkliste (les autres sont
+# deux missions multi-entités pour illustrer cette fonctionnalité — chaque
+# entité listée obtient son propre ControleEntite indépendant (même groupe
+# de démo, même statut/nb_declares pour simplifier, mais des lignes
+# distinctes en base, comme dans l'application réelle). `entites` prend 1 ou
+# 2 index dans ENTITES_DEMO ; `nb_declares` fixe combien de traitements sont
+# cochés "déclarés" à la checkliste de chaque contrôle (les autres sont
 # automatiquement classés non conformes, sauf pour les statuts pas encore
 # démarrés où la checkliste n'a simplement pas été faite).
 SCENARIOS = [
@@ -125,7 +130,7 @@ def _remplir_traitement_declare(reponse, evaluation=None):
         reponse.save()
 
 
-def _appliquer_checkliste(mission, nb_declares, evaluer=False):
+def _appliquer_checkliste(controle, nb_declares, evaluer=False):
     """Reproduit l'effet de la checkliste (questionnaire_checklist) : coche
     `nb_declares` traitements comme déclarés et les détaille, classe
     automatiquement les autres non conformes — exactement le comportement de
@@ -133,7 +138,7 @@ def _appliquer_checkliste(mission, nb_declares, evaluer=False):
     codes = [code for code, _ in Traitement.choices]
     codes_declares = set(random.sample(codes, min(nb_declares, len(codes))))
 
-    for reponse in mission.reponses.all():
+    for reponse in controle.reponses.all():
         if reponse.traitement in codes_declares:
             evaluation = random.choice(list(EvaluationConformite.values)) if evaluer else None
             _remplir_traitement_declare(reponse, evaluation=evaluation)
@@ -143,27 +148,28 @@ def _appliquer_checkliste(mission, nb_declares, evaluer=False):
             reponse.save()
 
 
-def _journaliser_progression(mission, utilisateur, statut):
-    journaliser(mission, utilisateur, TypeAction.CREATION)
+def _journaliser_progression(controle, utilisateur, statut):
+    journaliser(controle, utilisateur, TypeAction.CREATION)
     if statut >= StatutMission.QUESTIONNAIRE_COMPLETE:
-        journaliser(mission, utilisateur, TypeAction.QUESTIONNAIRE_COMPLETE)
+        journaliser(controle, utilisateur, TypeAction.QUESTIONNAIRE_COMPLETE)
     if statut >= StatutMission.PV_GENERE:
-        journaliser(mission, utilisateur, TypeAction.PV_GENERE, fichier="pv_mission_demo2.docx")
+        journaliser(controle, utilisateur, TypeAction.PV_GENERE, fichier="pv_controle_demo2.docx")
     if statut >= StatutMission.PV_SCAN_UPLOAD:
-        journaliser(mission, utilisateur, TypeAction.SCAN_UPLOAD)
+        journaliser(controle, utilisateur, TypeAction.SCAN_UPLOAD)
     if statut >= StatutMission.RAPPORT_GENERE:
-        journaliser(mission, utilisateur, TypeAction.RAPPORT_GENERE, provisoire=True)
+        journaliser(controle, utilisateur, TypeAction.RAPPORT_GENERE, provisoire=True)
     if statut >= StatutMission.RAPPORT_SCAN_UPLOAD:
-        journaliser(mission, utilisateur, TypeAction.RAPPORT_SCAN_UPLOAD)
+        journaliser(controle, utilisateur, TypeAction.RAPPORT_SCAN_UPLOAD)
     if statut >= StatutMission.VALIDEE:
-        journaliser(mission, utilisateur, TypeAction.VALIDATION)
+        journaliser(controle, utilisateur, TypeAction.VALIDATION)
 
 
 class Command(BaseCommand):
     help = (
         "Crée un jeu de missions de démonstration couvrant chaque statut du circuit de "
-        "clôture, avec entités sectorisées, missions multi-entités, checkliste des "
-        "traitements déclarés et ordre de mission joint (DEBUG uniquement)."
+        "clôture, avec entités sectorisées, missions multi-entités (un ControleEntite "
+        "indépendant par entité), checkliste des traitements déclarés et ordre de mission "
+        "joint (DEBUG uniquement)."
     )
 
     def handle(self, *args, **options):
@@ -172,7 +178,7 @@ class Command(BaseCommand):
 
         call_command("seed_dev")
 
-        if MissionControle.tous.filter(commentaires_observations__startswith=MARQUEUR_SEED).exists():
+        if ControleEntite.objects.filter(commentaires_observations__startswith=MARQUEUR_SEED).exists():
             self.stdout.write("Missions de démo seed2 déjà présentes — génération ignorée.")
             return
 
@@ -201,54 +207,57 @@ class Command(BaseCommand):
         ]
 
         aujourd_hui = datetime.date.today()
+        nb_controles = 0
 
         with transaction.atomic():
             for i, scenario in enumerate(SCENARIOS):
                 statut = scenario["statut"]
                 date_mission = aujourd_hui - datetime.timedelta(days=random.randint(10, 400))
 
-                mission = MissionControle.objects.create(
-                    date_mission=date_mission,
-                    commentaires_observations=f"{MARQUEUR_SEED} Mission de démonstration n°{i + 1}.",
-                )
-                mission.entites_controlees.set([entites[idx] for idx in scenario["entites"]])
-
-                nom_fichier = f"ordre_mission_demo2_{i + 1}.pdf"
+                mission = MissionControle.objects.create(date_mission=date_mission)
                 mission.ordre_mission.save(
-                    nom_fichier, ContentFile(b"%PDF-1.4 Ordre de mission (demo seed2)"), save=False,
+                    f"ordre_mission_demo2_{i + 1}.pdf",
+                    ContentFile(b"%PDF-1.4 Ordre de mission (demo seed2)"), save=True,
                 )
 
-                MembreGroupeControle.objects.create(mission=mission, agent=chef, role=RoleMission.CHEF)
-                for agent in random.sample(autres_agents, k=min(random.randint(1, 2), len(autres_agents))):
-                    MembreGroupeControle.objects.create(mission=mission, agent=agent, role=RoleMission.AGENT)
-
-                for personne, infos in random.sample(personnes, k=random.randint(1, len(personnes))):
-                    PersonneInterrogee.objects.create(
-                        mission=mission, personne=personne,
-                        poste_snapshot=infos["poste"], service_snapshot=infos["service"],
+                for idx in scenario["entites"]:
+                    controle = ControleEntite.objects.create(
+                        mission=mission, entite=entites[idx],
+                        commentaires_observations=f"{MARQUEUR_SEED} Contrôle n°{i + 1}.",
                     )
+                    nb_controles += 1
 
-                if scenario["nb_declares"]:
-                    _appliquer_checkliste(
-                        mission, scenario["nb_declares"], evaluer=statut >= StatutMission.QUESTIONNAIRE_COMPLETE,
-                    )
+                    MembreGroupeControle.objects.create(controle=controle, agent=chef, role=RoleMission.CHEF)
+                    for agent in random.sample(autres_agents, k=min(random.randint(1, 2), len(autres_agents))):
+                        MembreGroupeControle.objects.create(controle=controle, agent=agent, role=RoleMission.AGENT)
 
-                if statut >= StatutMission.PV_GENERE:
-                    representant, _ = random.choice(personnes)
-                    mission.mode_pv = random.choice(ModePV.values)
-                    mission.nom_representant_entite = str(representant)
-                    mission.heure_controle = "09h30"
-                    mission.deliberation_numero = f"DEL-{date_mission.year}-{i + 1:03d}"
-                    mission.lieu_signature = "Libreville"
-                    mission.date_signature = date_mission + datetime.timedelta(days=5)
-                    mission.heure_signature = "12h15"
+                    for personne, infos in random.sample(personnes, k=random.randint(1, len(personnes))):
+                        PersonneInterrogee.objects.create(
+                            controle=controle, personne=personne,
+                            poste_snapshot=infos["poste"], service_snapshot=infos["service"],
+                        )
 
-                _journaliser_progression(mission, chef_user, statut)
+                    if scenario["nb_declares"]:
+                        _appliquer_checkliste(
+                            controle, scenario["nb_declares"], evaluer=statut >= StatutMission.QUESTIONNAIRE_COMPLETE,
+                        )
 
-                mission.statut = statut
-                mission.save()
+                    if statut >= StatutMission.PV_GENERE:
+                        representant, _ = random.choice(personnes)
+                        controle.mode_pv = random.choice(ModePV.values)
+                        controle.nom_representant_entite = str(representant)
+                        controle.heure_controle = "09h30"
+                        controle.deliberation_numero = f"DEL-{date_mission.year}-{i + 1:03d}"
+                        controle.lieu_signature = "Libreville"
+                        controle.date_signature = date_mission + datetime.timedelta(days=5)
+                        controle.heure_signature = "12h15"
+
+                    _journaliser_progression(controle, chef_user, statut)
+
+                    controle.statut = statut
+                    controle.save()
 
             self.stdout.write(self.style.SUCCESS(
-                f"{len(SCENARIOS)} missions de démo seed2 créées "
-                f"(1 par statut du circuit + 2 multi-entités, {len(entites)} structures sectorisées)."
+                f"{len(SCENARIOS)} missions de démo seed2 créées ({nb_controles} contrôles d'entité — "
+                f"1 par statut du circuit + 2 multi-entités, {len(entites)} structures sectorisées)."
             ))

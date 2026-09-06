@@ -38,10 +38,10 @@
         </td>
         <td class="px-4 py-3 text-gray-600">{{ ligne.nb_missions }}</td>
         <td class="px-4 py-3">
-          {% if ligne.derniere_mission %}
-            <span class="text-gray-600">{{ ligne.derniere_mission.date_mission }}</span>
-            <span class="block mt-1 px-2 py-0.5 rounded-full text-xs font-medium w-fit {{ ligne.derniere_mission.statut_css_classes }}">
-              {{ ligne.derniere_mission.get_statut_display }}
+          {% if ligne.dernier_controle %}
+            <span class="text-gray-600">{{ ligne.dernier_controle.mission.date_mission }}</span>
+            <span class="block mt-1 px-2 py-0.5 rounded-full text-xs font-medium w-fit {{ ligne.dernier_controle.statut_css_classes }}">
+              {{ ligne.dernier_controle.get_statut_display }}
             </span>
           {% else %}
             <span class="text-gray-400">—</span>

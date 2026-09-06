@@ -17,18 +17,23 @@
 </div>
 
 <!-- KPI -->
-<div class="grid grid-cols-2 lg:grid-cols-7 gap-4 mb-8">
+<div class="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4 mb-8">
   <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
     <p class="text-xs text-gray-500">Missions</p>
     <p class="text-2xl font-semibold text-gray-900">{{ total_missions }}</p>
   </div>
   <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
-    <p class="text-xs text-gray-500">En cours</p>
-    <p class="text-2xl font-semibold text-blue-700">{{ missions_en_cours }}</p>
+    <p class="text-xs text-gray-500">Contrôles d'entité</p>
+    <p class="text-2xl font-semibold text-gray-900">{{ total_controles }}</p>
+    <p class="text-[11px] text-gray-400">1 par entité contrôlée</p>
   </div>
   <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
-    <p class="text-xs text-gray-500">Missions clôturées</p>
-    <p class="text-2xl font-semibold text-green-700">{{ missions_validees }}</p>
+    <p class="text-xs text-gray-500">En cours</p>
+    <p class="text-2xl font-semibold text-blue-700">{{ controles_en_cours }}</p>
+  </div>
+  <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
+    <p class="text-xs text-gray-500">Contrôles clôturés</p>
+    <p class="text-2xl font-semibold text-green-700">{{ controles_valides }}</p>
   </div>
   <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-4">
     <p class="text-xs text-gray-500">Entités contrôlées</p>
@@ -127,8 +132,8 @@
       <thead class="text-left text-gray-600">
         <tr>
           <th class="px-3 py-2 font-medium">Structure</th>
-          <th class="px-3 py-2 font-medium">Missions</th>
-          <th class="px-3 py-2 font-medium">Dernière mission</th>
+          <th class="px-3 py-2 font-medium">Contrôles</th>
+          <th class="px-3 py-2 font-medium">Dernier contrôle</th>
           <th class="px-3 py-2 font-medium">Traitements audités (a→j)</th>
           <th class="px-3 py-2 font-medium">Conformité</th>
         </tr>
@@ -141,11 +146,11 @@
           </td>
           <td class="px-3 py-3 text-gray-600">{{ structure.nb_missions }}</td>
           <td class="px-3 py-3 whitespace-nowrap">
-            {% if structure.derniere_mission %}
-              <a href="{% url 'missions:mission_detail' structure.derniere_mission.pk %}"
-                 class="text-blue-600 hover:text-blue-800">{{ structure.derniere_mission.date_mission }}</a>
-              <span class="block mt-1 px-2 py-0.5 rounded-full text-xs font-medium w-fit {{ structure.derniere_mission.statut_css_classes }}">
-                {{ structure.derniere_mission.get_statut_display }}
+            {% if structure.dernier_controle %}
+              <a href="{% url 'missions:controle_entite_detail' structure.dernier_controle.pk %}"
+                 class="text-blue-600 hover:text-blue-800">{{ structure.dernier_controle.mission.date_mission }}</a>
+              <span class="block mt-1 px-2 py-0.5 rounded-full text-xs font-medium w-fit {{ structure.dernier_controle.statut_css_classes }}">
+                {{ structure.dernier_controle.get_statut_display }}
               </span>
             {% else %}
               <span class="text-gray-400">—</span>

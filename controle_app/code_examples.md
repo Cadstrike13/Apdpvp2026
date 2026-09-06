@@ -117,37 +117,39 @@ def require_groupe(*groupes):
     return decorateur
 
 
-def require_membre_mission(vue):
-    """Tout membre (chef ou agent) du groupe de contrôle de CETTE mission."""
+def require_membre_controle(vue):
+    """Tout membre (chef ou agent) du groupe de contrôle de CE contrôle
+    d'entité (ControleEntite) — le groupe est propre à chaque entité, pas à
+    la mission entière."""
     @wraps(vue)
     @login_required
-    def wrapper(request, mission_pk, *args, **kwargs):
-        from missions.models import MissionControle
-        mission = get_object_or_404(MissionControle, pk=mission_pk)
-        request.mission = mission  # toujours défini, même pour un superuser
+    def wrapper(request, controle_pk, *args, **kwargs):
+        from missions.models import ControleEntite
+        controle = get_object_or_404(ControleEntite, pk=controle_pk)
+        request.controle = controle  # toujours défini, même pour un superuser
         if request.user.is_superuser:
-            return vue(request, mission_pk, *args, **kwargs)
-        est_membre = mission.membres_groupe.filter(agent__user=request.user).exists()
+            return vue(request, controle_pk, *args, **kwargs)
+        est_membre = controle.membres_groupe.filter(agent__user=request.user).exists()
         if not est_membre:
-            raise PermissionDenied("Vous n'êtes pas membre du groupe de contrôle de cette mission.")
-        return vue(request, mission_pk, *args, **kwargs)
+            raise PermissionDenied("Vous n'êtes pas membre du groupe de contrôle de cette entité.")
+        return vue(request, controle_pk, *args, **kwargs)
     return wrapper
 
 
-def require_chef_mission(vue):
-    """Uniquement le chef de CETTE mission (validation)."""
+def require_chef_controle(vue):
+    """Uniquement le chef de CE contrôle d'entité (validation)."""
     @wraps(vue)
     @login_required
-    def wrapper(request, mission_pk, *args, **kwargs):
-        from missions.models import MissionControle
-        mission = get_object_or_404(MissionControle, pk=mission_pk)
-        request.mission = mission  # toujours défini, même pour un superuser
+    def wrapper(request, controle_pk, *args, **kwargs):
+        from missions.models import ControleEntite
+        controle = get_object_or_404(ControleEntite, pk=controle_pk)
+        request.controle = controle  # toujours défini, même pour un superuser
         if request.user.is_superuser:
-            return vue(request, mission_pk, *args, **kwargs)
-        est_chef = mission.membres_groupe.chefs().filter(agent__user=request.user).exists()
+            return vue(request, controle_pk, *args, **kwargs)
+        est_chef = controle.membres_groupe.chefs().filter(agent__user=request.user).exists()
         if not est_chef:
             raise PermissionDenied("Seul le chef de mission peut valider ce contrôle.")
-        return vue(request, mission_pk, *args, **kwargs)
+        return vue(request, controle_pk, *args, **kwargs)
     return wrapper
 ```
 
@@ -188,12 +190,12 @@ class Command(BaseCommand):
 Usage dans les vues :
 
 ```python
-@require_membre_mission
-def remplir_questionnaire(request, mission_pk):
+@require_membre_controle
+def remplir_questionnaire(request, controle_pk):
     ...
 
-@require_chef_mission
-def valider_mission(request, mission_pk):
+@require_chef_controle
+def valider_controle(request, controle_pk):
     ...
 ```
 
@@ -255,33 +257,42 @@ class Fonction(models.Model):
 ```
 
 `PersonneInterrogee` garde une FK vers `Personne` + un **snapshot figé**
-(`poste_snapshot`, `service_snapshot`) copié au moment de l'ajout à la
-mission, pour que le rapport reste fidèle même si la fonction change plus
+(`poste_snapshot`, `service_snapshot`) copié au moment de l'ajout au
+contrôle, pour que le rapport reste fidèle même si la fonction change plus
 tard.
 
 ---
 
 ## 5. Verrouillage post-génération — le pattern à reproduire
 
-Trois façons selon le type de relation, **toujours appliquées au niveau
-modèle**, jamais seulement dans les vues.
+`ControleEntite` (pas `MissionControle`) porte le statut et le verrouillage
+réel — voir `ControleEntite.est_verrouillee` (statut ≥ `pv_genere`). Trois
+façons selon le type de relation, **toujours appliquées au niveau modèle**,
+jamais seulement dans les vues.
 
-### a) Champ simple sensible (MissionControle elle-même)
+### a) Champ simple sensible sur un objet PARENT (MissionControle.date_mission)
+
+`MissionControle` n'a pas de statut propre — sa date reste modifiable tant
+qu'aucune de ses entités n'est verrouillée, en interrogeant ses
+`ControleEntite` enfants :
 
 ```python
 def save(self, *args, **kwargs):
     if self.pk:
-        ancien = MissionControle.objects.get(pk=self.pk)
-        if ancien.est_verrouillee:
-            if ancien.date_mission != self.date_mission:
-                raise ValidationError("Impossible de modifier 'date_mission' : mission verrouillée.")
+        ancien = MissionControle.tous.get(pk=self.pk)
+        date_mission = self._meta.get_field("date_mission").to_python(self.date_mission)
+        if ancien.date_mission != date_mission and self.controles_entites.filter(
+            statut__gte=StatutMission.PV_GENERE
+        ).exists():
+            raise ValidationError("Impossible de modifier 'date_mission' : au moins un contrôle est verrouillé.")
     super().save(*args, **kwargs)
 ```
 
-### b) Modèle enfant (`clean()`/`save()`/`delete()`) — pattern générique
+### b) Modèle enfant direct (`clean()`/`save()`/`delete()`) — pattern générique
 
-Utilisé pour `PersonneInterrogee`, `MembreGroupeControle`, et les 5
-`ReponsePageN` via `ReponsePageMixin` :
+Utilisé pour `PersonneInterrogee`, `MembreGroupeControle`, `ReponseTraitement`,
+et les 5 `ReponsePageN` via `ReponsePageMixin` — chacun a une FK directe
+(`controle` ou `reponse` → `controle`) vers `ControleEntite` :
 
 ```python
 class ReponsePageMixin(models.Model):
@@ -289,67 +300,65 @@ class ReponsePageMixin(models.Model):
         abstract = True
 
     def clean(self):
-        if self.reponse.est_verrouille:
-            raise ValidationError("Mission verrouillée après génération du rapport.")
+        if self.reponse_id and self.reponse.est_verrouille:
+            raise ValidationError("Contrôle verrouillé après génération du rapport.")
 
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.reponse.est_verrouille:
-            raise ValidationError("Impossible de supprimer : mission verrouillée.")
+        if self.reponse_id and self.reponse.est_verrouille:
+            raise ValidationError("Impossible de supprimer : contrôle verrouillé.")
         super().delete(*args, **kwargs)
 ```
 
-### c) Relation M2M avec `through` (MembreGroupeControle)
+⚠️ Piège avec les `ModelForm` : une contrainte DB (`UniqueConstraint`) qui
+référence un champ **absent du formulaire** (ex. `controle` sur
+`MembreGroupeControle`, fixé via `instance=` plutôt que saisi) n'est **pas**
+vue par `form.is_valid()` — Django exclut de la validation les champs
+absents du formulaire, `validate_constraints()` respecte cet exclude. La
+violation ne se déclenche qu'au `.save()` réel : il faut l'attraper
+explicitement dans la vue (`try/except ValidationError` autour de
+`form.save()`), sinon c'est un 500 non géré — voir `membre_ajouter`
+(`missions/views.py`) pour `un_seul_chef_par_controle`.
 
-`clean()` ne suffit pas pour un M2M — Django ne le déclenche pas
-automatiquement à la sauvegarde. Passer par un modèle `through` explicite
-(pas un `ManyToManyField` nu) rend `clean()`/`save()`/`delete()` à nouveau
-suffisants, plus besoin de signal `m2m_changed`.
+### c) Relation M2M avec `through` explicite (`MissionControle.entites_controlees`)
 
 ```python
-class MembreGroupeControle(models.Model):
-    mission = models.ForeignKey(MissionControle, on_delete=models.CASCADE, related_name="membres_groupe")
-    agent = models.ForeignKey("agents.AgentControleur", on_delete=models.PROTECT, related_name="participations")
-    role = models.CharField(max_length=10, choices=RoleMission.choices, default=RoleMission.AGENT)
+class MissionControle(models.Model):
+    entites_controlees = models.ManyToManyField(
+        "entites.EntiteControlee", through="ControleEntite", related_name="missions",
+    )
+
+class ControleEntite(models.Model):
+    mission = models.ForeignKey(MissionControle, on_delete=models.CASCADE, related_name="controles_entites")
+    entite = models.ForeignKey("entites.EntiteControlee", on_delete=models.PROTECT, related_name="controles")
+    statut = models.IntegerField(choices=StatutMission.choices, default=StatutMission.BROUILLON)
+    # ... reste du circuit (PV, rapport, groupe, etc.)
 
     class Meta:
-        unique_together = ("mission", "agent")
-        constraints = [
-            models.UniqueConstraint(
-                fields=["mission"], condition=models.Q(role="chef"),
-                name="un_seul_chef_par_mission",
-            )
-        ]
+        unique_together = ("mission", "entite")
 
-    def clean(self):
-        if self.mission.est_verrouillee:
-            raise ValidationError("Mission verrouillée.")
+    @property
+    def est_verrouillee(self):
+        return self.statut >= StatutMission.PV_GENERE
 
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
+    def delete(self, *args, **kwargs):
+        if self.est_verrouillee:
+            raise ValidationError("Impossible de retirer cette entité du contrôle : verrouillée.")
+        super().delete(*args, **kwargs)
 ```
 
-### d) `ManyToManyField` nu, sans `through` (`MissionControle.entites_controlees`)
-
-Sans modèle `through` explicite, il n'y a pas de `save()`/`clean()` à
-intercepter sur les lignes de la table pivot — Django la gère lui-même.
-Seul le signal `m2m_changed` (`missions/signals.py`) voit les
-`.add()`/`.remove()`/`.set()` :
-
-```python
-@receiver(m2m_changed, sender=MissionControle.entites_controlees.through)
-def proteger_entites_controlees_si_verrouillee(sender, instance, action, **kwargs):
-    if action in {"pre_add", "pre_remove", "pre_clear"} and instance.pk and instance.est_verrouillee:
-        raise ValidationError("Impossible de modifier les entités contrôlées : mission verrouillée.")
-```
-
-`MissionControle.entites_controlees.through` reste utilisable même sans
-`through` explicite — Django en génère un automatiquement, seulement pas
-adressable comme un modèle à soi (pas de `clean()` à y ajouter).
+Avec un `through` explicite (contrairement à un `ManyToManyField` nu),
+`ControleEntite` **est** le modèle pivot — `clean()`/`save()`/`delete()`
+suffisent, pas besoin de signal `m2m_changed`. Condition : l'application ne
+doit jamais appeler `.add()`/`.remove()`/`.set()` sur
+`entites_controlees` pour des écritures (ces méthodes du manager M2M
+contournent `ControleEntite.delete()`) — toujours créer/supprimer des
+`ControleEntite` directement (`ControleEntite.objects.create(...)`,
+`controle.delete()`). `entites_controlees` reste pratique en lecture
+(`.all()`, `.filter()`, requêtes inverses `entite.missions`).
 
 ---
 
@@ -374,18 +383,20 @@ class ReponsePage1(ReponsePageMixin, models.Model):
     history = HistoricalRecords()
 ```
 
-`JournalAction` pour les événements de workflow (pas les modifs de champ) :
+`JournalAction` pour les événements de workflow (pas les modifs de champ) —
+rattaché à `ControleEntite`, pas à `MissionControle` (chaque entité a son
+propre journal) :
 
 ```python
 class TypeAction(models.TextChoices):
-    CREATION = "creation", "Création de la mission"
+    CREATION = "creation", "Création du contrôle"
     QUESTIONNAIRE_COMPLETE = "questionnaire_complete", "Questionnaire complété"
     RAPPORT_GENERE = "rapport_genere", "Rapport généré"
     SCAN_UPLOAD = "scan_upload", "Scan signé uploadé"
-    VALIDATION = "validation", "Mission validée"
+    VALIDATION = "validation", "Contrôle validé"
 
 class JournalAction(models.Model):
-    mission = models.ForeignKey(MissionControle, on_delete=models.CASCADE, related_name="journal")
+    controle = models.ForeignKey(ControleEntite, on_delete=models.CASCADE, related_name="journal")
     utilisateur = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     type_action = models.CharField(max_length=30, choices=TypeAction.choices)
     details = models.JSONField(default=dict, blank=True)
@@ -398,9 +409,9 @@ class JournalAction(models.Model):
 Helper d'écriture :
 
 ```python
-def journaliser(mission, utilisateur, type_action, **details):
+def journaliser(controle, utilisateur, type_action, **details):
     JournalAction.objects.create(
-        mission=mission, utilisateur=utilisateur,
+        controle=controle, utilisateur=utilisateur,
         type_action=type_action, details=details,
     )
 ```
@@ -411,27 +422,28 @@ def journaliser(mission, utilisateur, type_action, **details):
 
 ```python
 class ReponseTraitement(models.Model):
-    mission = models.ForeignKey(MissionControle, on_delete=models.CASCADE, related_name="reponses")
+    controle = models.ForeignKey(ControleEntite, on_delete=models.CASCADE, related_name="reponses")
     traitement = models.CharField(max_length=1, choices=Traitement.choices)
 
     class Meta:
-        unique_together = ("mission", "traitement")
+        unique_together = ("controle", "traitement")
 
     @property
     def est_verrouille(self):
-        return self.mission.est_verrouillee
+        return self.controle.est_verrouillee
 ```
 
-Création automatique des 10 lignes + leurs 5 pages à la création de la
-mission (missions/signals.py, connecté dans `apps.py` → `ready()`) :
+Création automatique des 10 lignes + leurs 5 pages à la création du
+`ControleEntite` — pas de `MissionControle` (missions/signals.py, connecté
+dans `apps.py` → `ready()`) :
 
 ```python
-@receiver(post_save, sender=MissionControle)
+@receiver(post_save, sender=ControleEntite)
 def creer_reponses_traitements(sender, instance, created, **kwargs):
     if not created:
         return
     for code, _ in Traitement.choices:
-        reponse = ReponseTraitement.objects.create(mission=instance, traitement=code)
+        reponse = ReponseTraitement.objects.create(controle=instance, traitement=code)
         ReponsePage1.objects.create(reponse=reponse)
         ReponsePage2.objects.create(reponse=reponse)
         ReponsePage3.objects.create(reponse=reponse)
@@ -455,21 +467,24 @@ Page1FormSet = modelformset_factory(ReponsePage1, form=ReponsePage1Form, extra=0
 ```
 
 ```python
-@require_membre_mission
-def questionnaire_page1(request, mission_pk):
-    mission = request.mission
-    queryset = ReponsePage1.objects.filter(reponse__mission=mission).order_by("reponse__traitement")
+@require_membre_controle
+def questionnaire_page(request, controle_pk, page):
+    controle = request.controle
+    queryset = ReponsePage1.objects.filter(reponse__controle=controle).order_by("reponse__traitement")
+    if page == 1:
+        # Seuls les traitements cochés à la checkliste sont détaillés.
+        queryset = queryset.filter(declaration_effectuee=True)
 
     if request.method == "POST":
         formset = Page1FormSet(request.POST, queryset=queryset)
         if formset.is_valid():
             formset.save()
-            journaliser(mission, request.user, TypeAction.QUESTIONNAIRE_COMPLETE, page="page1")
-            return redirect("missions:questionnaire_page2", mission_pk=mission.pk)
+            journaliser(controle, request.user, TypeAction.QUESTIONNAIRE_COMPLETE, page="page1")
+            return redirect("missions:questionnaire_page", controle_pk=controle.pk, page=2)
     else:
         formset = Page1FormSet(queryset=queryset)
 
-    return render(request, "missions/questionnaire_page1.html", {"mission": mission, "formset": formset})
+    return render(request, "missions/questionnaire_page1.html", {"controle": controle, "formset": formset})
 ```
 
 Dans le template : `zip(formset.forms, queryset)` pour afficher le libellé

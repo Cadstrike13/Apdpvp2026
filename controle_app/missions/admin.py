@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    ControleEntite,
     JournalAction,
     MembreGroupeControle,
     MissionControle,
@@ -12,6 +13,19 @@ from .models import (
     ReponsePage5,
     ReponseTraitement,
 )
+
+
+class ControleEntiteInline(admin.TabularInline):
+    model = ControleEntite
+    extra = 0
+    fields = ("entite", "statut")
+    show_change_link = True
+
+
+@admin.register(MissionControle)
+class MissionControleAdmin(admin.ModelAdmin):
+    list_display = ("entites_str", "date_mission", "statut_general", "est_supprime")
+    inlines = [ControleEntiteInline]
 
 
 class MembreGroupeControleInline(admin.TabularInline):
@@ -31,11 +45,10 @@ class JournalActionInline(admin.TabularInline):
     can_delete = False
 
 
-@admin.register(MissionControle)
-class MissionControleAdmin(admin.ModelAdmin):
-    list_display = ("entites_str", "date_mission", "statut", "est_verrouillee", "est_supprime")
-    list_filter = ("statut", "entites_controlees")
-    filter_horizontal = ("entites_controlees",)
+@admin.register(ControleEntite)
+class ControleEntiteAdmin(admin.ModelAdmin):
+    list_display = ("entite", "mission", "statut", "est_verrouillee")
+    list_filter = ("statut", "entite")
     inlines = [MembreGroupeControleInline, PersonneInterrogeeInline, JournalActionInline]
 
 
@@ -67,7 +80,7 @@ class ReponsePage5Inline(ReponsePageInline):
 
 @admin.register(ReponseTraitement)
 class ReponseTraitementAdmin(admin.ModelAdmin):
-    list_display = ("mission", "traitement", "est_verrouille")
+    list_display = ("controle", "traitement", "est_verrouille")
     list_filter = ("traitement",)
     inlines = [
         ReponsePage1Inline, ReponsePage2Inline, ReponsePage3Inline, ReponsePage4Inline, ReponsePage5Inline,
@@ -76,6 +89,6 @@ class ReponseTraitementAdmin(admin.ModelAdmin):
 
 @admin.register(JournalAction)
 class JournalActionAdmin(admin.ModelAdmin):
-    list_display = ("mission", "type_action", "utilisateur", "horodatage")
+    list_display = ("controle", "type_action", "utilisateur", "horodatage")
     list_filter = ("type_action",)
-    readonly_fields = ("mission", "utilisateur", "type_action", "details", "horodatage")
+    readonly_fields = ("controle", "utilisateur", "type_action", "details", "horodatage")

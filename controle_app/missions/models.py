@@ -13,7 +13,7 @@ TAILLE_MAX_FICHIER_MO = 10
 
 
 class Traitement(models.TextChoices):
-    """Les 10 traitements audités par mission (grille du questionnaire)."""
+    """Les 10 traitements audités par contrôle (grille du questionnaire)."""
 
     GESTION_PERSONNEL = "a", "Gestion du personnel"
     GESTION_CLIENTS = "b", "Gestion des clients"
@@ -28,9 +28,10 @@ class Traitement(models.TextChoices):
 
 
 class StatutMission(models.IntegerChoices):
-    """Ordre du circuit de clôture : le procès-verbal (PV) est généré et
-    verrouille la mission ; une fois imprimé/signé/scanné, le rapport final
-    est généré à partir du PV signé ; la mission est enfin validée."""
+    """Ordre du circuit de clôture d'UN contrôle d'entité (ControleEntite) :
+    le procès-verbal (PV) est généré et verrouille le contrôle ; une fois
+    imprimé/signé/scanné, le rapport final est généré à partir du PV signé ;
+    le contrôle est enfin validé."""
 
     BROUILLON = 10, "Brouillon"
     PLANIFIEE = 20, "Planifiée"
@@ -69,13 +70,13 @@ class RoleMission(models.TextChoices):
 
 
 class TypeAction(models.TextChoices):
-    CREATION = "creation", "Création de la mission"
+    CREATION = "creation", "Création du contrôle"
     QUESTIONNAIRE_COMPLETE = "questionnaire_complete", "Questionnaire complété"
     PV_GENERE = "pv_genere", "Procès-verbal généré"
     SCAN_UPLOAD = "scan_upload", "Procès-verbal signé uploadé"
     RAPPORT_GENERE = "rapport_genere", "Rapport généré"
     RAPPORT_SCAN_UPLOAD = "rapport_scan_upload", "Rapport signé uploadé"
-    VALIDATION = "validation", "Mission validée"
+    VALIDATION = "validation", "Contrôle validé"
 
 
 class MissionControleQuerySet(SoftDeleteQuerySet):
@@ -88,12 +89,16 @@ class MissionControleManager(SoftDeleteManager):
 
 
 class MissionControle(SoftDeleteMixin, models.Model):
+    """L'opération de contrôle telle que créée par l'admin : une date, un
+    ordre de mission, une ou plusieurs entités contrôlées. Chaque entité a
+    son propre circuit complet et indépendant — voir ControleEntite. Cette
+    mission n'a pas de statut propre stocké : `statut_general` en donne une
+    vue agrégée (à des fins de suivi/statistiques uniquement)."""
+
     entites_controlees = models.ManyToManyField(
-        "entites.EntiteControlee", related_name="missions",
+        "entites.EntiteControlee", through="ControleEntite", related_name="missions",
     )
     date_mission = models.DateField()
-    statut = models.IntegerField(choices=StatutMission.choices, default=StatutMission.BROUILLON)
-    commentaires_observations = models.TextField(blank=True)
     ordre_mission = models.FileField(
         verbose_name="Ordre de mission",
         upload_to="ordres_mission/%Y/%m/",
@@ -104,6 +109,69 @@ class MissionControle(SoftDeleteMixin, models.Model):
             ValidateurTailleFichier(TAILLE_MAX_FICHIER_MO),
         ],
     )
+
+    history = HistoricalRecords()
+
+    objects = MissionControleManager()
+    tous = TousManager()
+    corbeille = CorbeilleManager()
+
+    class Meta:
+        verbose_name = "Mission de contrôle"
+        verbose_name_plural = "Missions de contrôle"
+
+    def __str__(self):
+        return f"Mission {self.entites_str} — {self.date_mission}"
+
+    @property
+    def entites_str(self):
+        """Noms des entités contrôlées, séparés par une virgule — pour
+        affichage (templates, admin) et journalisation."""
+        return ", ".join(str(entite) for entite in self.entites_controlees.all()) or "—"
+
+    @property
+    def statut_general(self):
+        """Vue agrégée (suivi/statistiques) : la mission n'est jamais « plus
+        avancée » que son contrôle d'entité le moins avancé. Chaque entité
+        garde son propre statut réel — voir ControleEntite.statut."""
+        statuts = list(self.controles_entites.values_list("statut", flat=True))
+        return StatutMission(min(statuts)) if statuts else StatutMission.BROUILLON
+
+    @property
+    def statut_general_css_classes(self):
+        return COULEURS_STATUT.get(self.statut_general, "bg-gray-100 text-gray-700")
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            ancien = MissionControle.tous.get(pk=self.pk)
+            # to_python() normalise les valeurs encore sous forme brute (ex.
+            # date_mission="2026-07-01" avant le premier full_clean) — sans
+            # ça une valeur inchangée mais non coercée est vue à tort comme
+            # une modification.
+            date_mission = self._meta.get_field("date_mission").to_python(self.date_mission)
+            if ancien.date_mission != date_mission and self.controles_entites.filter(
+                statut__gte=StatutMission.PV_GENERE
+            ).exists():
+                raise ValidationError(
+                    "Impossible de modifier 'date_mission' : au moins un contrôle d'entité est verrouillé."
+                )
+        super().save(*args, **kwargs)
+
+
+class ControleEntite(models.Model):
+    """Le contrôle d'UNE entité au sein d'une mission — porte son propre
+    groupe de contrôle (chef + agents), sa checkliste des traitements
+    déclarés, son questionnaire, son évaluation et son circuit de clôture
+    (PV, rapport, validation), indépendamment des autres entités de la même
+    mission. Table pivot explicite de MissionControle.entites_controlees
+    (through) plutôt qu'un ManyToManyField nu, afin que le verrouillage
+    post-génération suive le pattern clean()/save()/delete() standard du
+    projet (voir code_examples.md §5b) plutôt qu'un signal m2m_changed."""
+
+    mission = models.ForeignKey(MissionControle, on_delete=models.CASCADE, related_name="controles_entites")
+    entite = models.ForeignKey("entites.EntiteControlee", on_delete=models.PROTECT, related_name="controles")
+    statut = models.IntegerField(choices=StatutMission.choices, default=StatutMission.BROUILLON)
+    commentaires_observations = models.TextField(blank=True)
     scan_signe = models.FileField(
         verbose_name="Procès-verbal signé (scan)",
         upload_to="scans_signes/%Y/%m/",
@@ -153,22 +221,13 @@ class MissionControle(SoftDeleteMixin, models.Model):
 
     history = HistoricalRecords()
 
-    objects = MissionControleManager()
-    tous = TousManager()
-    corbeille = CorbeilleManager()
-
     class Meta:
-        verbose_name = "Mission de contrôle"
-        verbose_name_plural = "Missions de contrôle"
+        verbose_name = "Contrôle d'entité"
+        verbose_name_plural = "Contrôles d'entité"
+        unique_together = ("mission", "entite")
 
     def __str__(self):
-        return f"Mission {self.entites_str} — {self.date_mission}"
-
-    @property
-    def entites_str(self):
-        """Noms des entités contrôlées, séparés par une virgule — pour
-        affichage (templates, PV, admin) et journalisation."""
-        return ", ".join(str(entite) for entite in self.entites_controlees.all()) or "—"
+        return f"{self.entite} — {self.mission.date_mission}"
 
     @property
     def est_verrouillee(self):
@@ -178,18 +237,10 @@ class MissionControle(SoftDeleteMixin, models.Model):
     def statut_css_classes(self):
         return COULEURS_STATUT.get(self.statut, "bg-gray-100 text-gray-700")
 
-    def save(self, *args, **kwargs):
-        if self.pk:
-            ancien = MissionControle.tous.get(pk=self.pk)
-            if ancien.est_verrouillee:
-                # to_python() normalise les valeurs encore sous forme brute (ex.
-                # date_mission="2026-07-01" avant le premier full_clean) — sans
-                # ça une valeur inchangée mais non coercée est vue à tort comme
-                # une modification.
-                date_mission = self._meta.get_field("date_mission").to_python(self.date_mission)
-                if ancien.date_mission != date_mission:
-                    raise ValidationError("Impossible de modifier 'date_mission' : mission verrouillée.")
-        super().save(*args, **kwargs)
+    def delete(self, *args, **kwargs):
+        if self.est_verrouillee:
+            raise ValidationError("Impossible de retirer cette entité du contrôle : verrouillée.")
+        super().delete(*args, **kwargs)
 
 
 class MembreGroupeControleQuerySet(models.QuerySet):
@@ -201,7 +252,7 @@ class MembreGroupeControleQuerySet(models.QuerySet):
 
 
 class MembreGroupeControle(models.Model):
-    mission = models.ForeignKey(MissionControle, on_delete=models.CASCADE, related_name="membres_groupe")
+    controle = models.ForeignKey(ControleEntite, on_delete=models.CASCADE, related_name="membres_groupe")
     agent = models.ForeignKey("agents.AgentControleur", on_delete=models.PROTECT, related_name="participations")
     role = models.CharField(max_length=10, choices=RoleMission.choices, default=RoleMission.AGENT)
 
@@ -212,36 +263,37 @@ class MembreGroupeControle(models.Model):
     class Meta:
         verbose_name = "Membre du groupe de contrôle"
         verbose_name_plural = "Membres du groupe de contrôle"
-        unique_together = ("mission", "agent")
+        unique_together = ("controle", "agent")
         constraints = [
             models.UniqueConstraint(
-                fields=["mission"], condition=models.Q(role="chef"),
-                name="un_seul_chef_par_mission",
+                fields=["controle"], condition=models.Q(role="chef"),
+                name="un_seul_chef_par_controle",
             )
         ]
 
     def __str__(self):
-        return f"{self.agent} ({self.get_role_display()}) — {self.mission}"
+        return f"{self.agent} ({self.get_role_display()}) — {self.controle}"
 
     def clean(self):
-        if self.mission.est_verrouillee:
-            raise ValidationError("Mission verrouillée.")
+        if self.controle.est_verrouillee:
+            raise ValidationError("Contrôle verrouillé.")
 
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.mission.est_verrouillee:
-            raise ValidationError("Impossible de supprimer : mission verrouillée.")
+        if self.controle.est_verrouillee:
+            raise ValidationError("Impossible de supprimer : contrôle verrouillé.")
         super().delete(*args, **kwargs)
 
 
 class PersonneInterrogee(models.Model):
-    """Personne interrogée pendant l'audit — distincte des `personnes_habilitees_*`
-    de la Page 4 (personnes ayant accès aux données dans le cadre du traitement)."""
+    """Personne interrogée pendant l'audit d'une entité — distincte des
+    `personnes_habilitees_*` de la Page 4 (personnes ayant accès aux
+    données dans le cadre du traitement)."""
 
-    mission = models.ForeignKey(MissionControle, on_delete=models.CASCADE, related_name="personnes_interrogees")
+    controle = models.ForeignKey(ControleEntite, on_delete=models.CASCADE, related_name="personnes_interrogees")
     personne = models.ForeignKey("personnes.Personne", on_delete=models.PROTECT, related_name="interrogatoires")
     poste_snapshot = models.CharField(max_length=255, blank=True)
     service_snapshot = models.CharField(max_length=255, blank=True)
@@ -253,19 +305,19 @@ class PersonneInterrogee(models.Model):
         verbose_name_plural = "Personnes interrogées"
 
     def __str__(self):
-        return f"{self.personne} — {self.mission}"
+        return f"{self.personne} — {self.controle}"
 
     def clean(self):
-        if self.mission.est_verrouillee:
-            raise ValidationError("Mission verrouillée après génération du rapport.")
+        if self.controle.est_verrouillee:
+            raise ValidationError("Contrôle verrouillé après génération du rapport.")
 
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.mission.est_verrouillee:
-            raise ValidationError("Impossible de supprimer : mission verrouillée.")
+        if self.controle.est_verrouillee:
+            raise ValidationError("Impossible de supprimer : contrôle verrouillé.")
         super().delete(*args, **kwargs)
 
 
@@ -372,10 +424,10 @@ CRITERES_CONFORMITE = [
 
 
 class ReponseTraitement(models.Model):
-    """Ligne pivot (mission, traitement) — créée automatiquement à la
-    création de la mission, voir missions/signals.py."""
+    """Ligne pivot (controle, traitement) — créée automatiquement à la
+    création du ControleEntite, voir missions/signals.py."""
 
-    mission = models.ForeignKey(MissionControle, on_delete=models.CASCADE, related_name="reponses")
+    controle = models.ForeignKey(ControleEntite, on_delete=models.CASCADE, related_name="reponses")
     traitement = models.CharField(max_length=1, choices=Traitement.choices)
 
     # Évaluation du contrôleur, saisie après le questionnaire et avant la
@@ -387,15 +439,15 @@ class ReponseTraitement(models.Model):
     class Meta:
         verbose_name = "Réponse traitement"
         verbose_name_plural = "Réponses traitement"
-        unique_together = ("mission", "traitement")
+        unique_together = ("controle", "traitement")
         ordering = ["traitement"]
 
     def __str__(self):
-        return f"{self.mission} — {self.get_traitement_display()}"
+        return f"{self.controle} — {self.get_traitement_display()}"
 
     @property
     def est_verrouille(self):
-        return self.mission.est_verrouillee
+        return self.controle.est_verrouillee
 
     def clean(self):
         if self.pk and self.est_verrouille:
@@ -489,10 +541,10 @@ class ReponsePageMixin(models.Model):
         # self.reponse_id peut être vide pour un formulaire "extra" fabriqué
         # par un formset dont le TOTAL_FORMS dépasse le nombre de lignes
         # réelles (ex. management form trafiqué côté client) — dans ce cas
-        # il n'y a pas de mission à verrouiller, on laisse les autres
+        # il n'y a pas de contrôle à verrouiller, on laisse les autres
         # validations du formulaire s'appliquer normalement.
         if self.reponse_id and self.reponse.est_verrouille:
-            raise ValidationError("Mission verrouillée après génération du rapport.")
+            raise ValidationError("Contrôle verrouillé après génération du rapport.")
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -500,7 +552,7 @@ class ReponsePageMixin(models.Model):
 
     def delete(self, *args, **kwargs):
         if self.reponse_id and self.reponse.est_verrouille:
-            raise ValidationError("Impossible de supprimer : mission verrouillée.")
+            raise ValidationError("Impossible de supprimer : contrôle verrouillé.")
         super().delete(*args, **kwargs)
 
 
@@ -636,7 +688,7 @@ class JournalAction(models.Model):
     """Événements de workflow (création, génération rapport, upload scan,
     validation) — distinct de l'historique champ par champ (django-simple-history)."""
 
-    mission = models.ForeignKey(MissionControle, on_delete=models.CASCADE, related_name="journal")
+    controle = models.ForeignKey(ControleEntite, on_delete=models.CASCADE, related_name="journal")
     utilisateur = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     type_action = models.CharField(max_length=30, choices=TypeAction.choices)
     details = models.JSONField(default=dict, blank=True)
@@ -648,10 +700,10 @@ class JournalAction(models.Model):
         ordering = ["-horodatage"]
 
     def __str__(self):
-        return f"{self.get_type_action_display()} — {self.mission} ({self.horodatage:%Y-%m-%d %H:%M})"
+        return f"{self.get_type_action_display()} — {self.controle} ({self.horodatage:%Y-%m-%d %H:%M})"
 
 
-def journaliser(mission, utilisateur, type_action, **details):
+def journaliser(controle, utilisateur, type_action, **details):
     return JournalAction.objects.create(
-        mission=mission, utilisateur=utilisateur, type_action=type_action, details=details,
+        controle=controle, utilisateur=utilisateur, type_action=type_action, details=details,
     )

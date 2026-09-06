@@ -11,6 +11,7 @@ from entites.models import EntiteControlee
 from personnes.models import Personne
 
 from ...models import (
+    ControleEntite,
     EvaluationConformite,
     MembreGroupeControle,
     MissionControle,
@@ -27,9 +28,10 @@ NB_MISSIONS = 60
 NB_ANNEES = 3
 GRAINE_ALEATOIRE = 20260821  # déterministe : mêmes données à chaque exécution
 
-# Marqueur préfixé aux observations pour identifier — et donc dédupliquer —
-# les missions générées par cette commande, indépendamment des entités
-# utilisées (qui peuvent être partagées avec seed_dev / d'anciennes données).
+# Marqueur préfixé aux observations de chaque ControleEntite pour identifier
+# — et donc dédupliquer — les contrôles générés par cette commande,
+# indépendamment des entités utilisées (partagées avec seed_dev / d'autres
+# données).
 MARQUEUR_SEED = "[Démo — seed_missions]"
 
 ENTITES_DEMO = [
@@ -62,7 +64,7 @@ PERSONNES_DEMO = [
 
 def _remplir_reponse(reponse, evaluation=None):
     """Renseigne des valeurs plausibles sur les 5 pages d'un ReponseTraitement
-    (créées automatiquement par le signal post_save de MissionControle) pour
+    (créées automatiquement par le signal post_save de ControleEntite) pour
     obtenir une donnée de démo réaliste plutôt que des pages vides."""
     code = reponse.traitement
 
@@ -140,9 +142,9 @@ def _dates_reparties(nb_missions, nb_annees):
 
 
 def _statut_pour_age(age_jours):
-    """Statut plausible compte tenu de l'ancienneté : les missions récentes
-    sont encore en amont du circuit, les plus anciennes très majoritairement
-    clôturées — comme dans un vrai historique d'activité."""
+    """Statut plausible compte tenu de l'ancienneté : les contrôles récents
+    sont encore en amont du circuit, les plus anciens très majoritairement
+    clôturés — comme dans un vrai historique d'activité."""
     if age_jours < 30:
         choix = [StatutMission.BROUILLON, StatutMission.PLANIFIEE, StatutMission.EN_COURS]
         poids = [1, 2, 3]
@@ -163,7 +165,7 @@ def _statut_pour_age(age_jours):
 
 def _tirer_evaluation(recence):
     """Verdict de conformité tiré aléatoirement, légèrement biaisé vers un
-    meilleur taux pour les missions récentes (`recence` proche de 1) — pour
+    meilleur taux pour les contrôles récents (`recence` proche de 1) — pour
     illustrer une tendance d'amélioration dans le temps sur le graphe
     d'évolution du tableau de bord."""
     poids_cto = 15 + round(35 * recence)
@@ -176,10 +178,10 @@ def _tirer_evaluation(recence):
     )[0]
 
 
-def _remplir_traitements(mission, statut, recence):
+def _remplir_traitements(controle, statut, recence):
     """Remplit les pages du questionnaire pour un sous-ensemble (ou la
     totalité, une fois le questionnaire marqué complet) des 10 traitements,
-    avec une évaluation sur une partie d'entre eux dès que la mission a
+    avec une évaluation sur une partie d'entre eux dès que le contrôle a
     dépassé cette étape — pour obtenir une matrice « traitements audités »
     variable d'une structure à l'autre."""
     codes_traitements = [code for code, _ in Traitement.choices]
@@ -192,31 +194,32 @@ def _remplir_traitements(mission, statut, recence):
     if statut >= StatutMission.QUESTIONNAIRE_COMPLETE:
         codes_a_evaluer = set(random.sample(codes_a_remplir, random.randint(6, len(codes_a_remplir))))
 
-    for reponse in mission.reponses.filter(traitement__in=codes_a_remplir):
+    for reponse in controle.reponses.filter(traitement__in=codes_a_remplir):
         evaluation = _tirer_evaluation(recence) if reponse.traitement in codes_a_evaluer else None
         _remplir_reponse(reponse, evaluation=evaluation)
 
 
-def _journaliser_progression(mission, utilisateur, statut):
-    journaliser(mission, utilisateur, TypeAction.CREATION)
+def _journaliser_progression(controle, utilisateur, statut):
+    journaliser(controle, utilisateur, TypeAction.CREATION)
     if statut >= StatutMission.QUESTIONNAIRE_COMPLETE:
-        journaliser(mission, utilisateur, TypeAction.QUESTIONNAIRE_COMPLETE)
+        journaliser(controle, utilisateur, TypeAction.QUESTIONNAIRE_COMPLETE)
     if statut >= StatutMission.PV_GENERE:
-        journaliser(mission, utilisateur, TypeAction.PV_GENERE, fichier="pv_mission_demo.docx")
+        journaliser(controle, utilisateur, TypeAction.PV_GENERE, fichier="pv_controle_demo.docx")
     if statut >= StatutMission.PV_SCAN_UPLOAD:
-        journaliser(mission, utilisateur, TypeAction.SCAN_UPLOAD)
+        journaliser(controle, utilisateur, TypeAction.SCAN_UPLOAD)
     if statut >= StatutMission.RAPPORT_GENERE:
-        journaliser(mission, utilisateur, TypeAction.RAPPORT_GENERE, provisoire=True)
+        journaliser(controle, utilisateur, TypeAction.RAPPORT_GENERE, provisoire=True)
     if statut >= StatutMission.RAPPORT_SCAN_UPLOAD:
-        journaliser(mission, utilisateur, TypeAction.RAPPORT_SCAN_UPLOAD)
+        journaliser(controle, utilisateur, TypeAction.RAPPORT_SCAN_UPLOAD)
     if statut >= StatutMission.VALIDEE:
-        journaliser(mission, utilisateur, TypeAction.VALIDATION)
+        journaliser(controle, utilisateur, TypeAction.VALIDATION)
 
 
 class Command(BaseCommand):
     help = (
-        f"Crée {NB_MISSIONS} missions de contrôle de démonstration réparties sur "
-        f"{NB_ANNEES} ans, à des statuts et niveaux de conformité variés (DEBUG uniquement)."
+        f"Crée {NB_MISSIONS} missions de contrôle de démonstration (une entité, un contrôle,  "
+        f"chacun) réparties sur {NB_ANNEES} ans, à des statuts et niveaux de conformité variés "
+        f"(DEBUG uniquement)."
     )
 
     def handle(self, *args, **options):
@@ -225,10 +228,10 @@ class Command(BaseCommand):
 
         call_command("seed_dev")
 
-        deja_presentes = MissionControle.objects.filter(
+        deja_presents = ControleEntite.objects.filter(
             commentaires_observations__startswith=MARQUEUR_SEED
         ).count()
-        if deja_presentes >= NB_MISSIONS:
+        if deja_presents >= NB_MISSIONS:
             self.stdout.write(f"{NB_MISSIONS} missions de démo déjà présentes — génération ignorée.")
             return
 
@@ -263,38 +266,38 @@ class Command(BaseCommand):
                 statut = _statut_pour_age(age_jours)
                 entite = random.choice(entites)
 
-                mission = MissionControle.objects.create(
-                    date_mission=date_mission,
-                    commentaires_observations=f"{MARQUEUR_SEED} Mission de contrôle n°{i + 1}.",
+                mission = MissionControle.objects.create(date_mission=date_mission)
+                controle = ControleEntite.objects.create(
+                    mission=mission, entite=entite,
+                    commentaires_observations=f"{MARQUEUR_SEED} Contrôle n°{i + 1}.",
                 )
-                mission.entites_controlees.add(entite)
 
-                MembreGroupeControle.objects.create(mission=mission, agent=chef, role=RoleMission.CHEF)
+                MembreGroupeControle.objects.create(controle=controle, agent=chef, role=RoleMission.CHEF)
                 for agent in random.sample(autres_agents, k=min(random.randint(1, 2), len(autres_agents))):
-                    MembreGroupeControle.objects.create(mission=mission, agent=agent, role=RoleMission.AGENT)
+                    MembreGroupeControle.objects.create(controle=controle, agent=agent, role=RoleMission.AGENT)
 
                 for personne, infos in random.sample(personnes, k=random.randint(1, 2)):
                     PersonneInterrogee.objects.create(
-                        mission=mission, personne=personne,
+                        controle=controle, personne=personne,
                         poste_snapshot=infos["poste"], service_snapshot=infos["service"],
                     )
 
-                _remplir_traitements(mission, statut, recence)
+                _remplir_traitements(controle, statut, recence)
 
                 if statut >= StatutMission.PV_GENERE:
                     representant, _ = random.choice(personnes)
-                    mission.mode_pv = random.choice(ModePV.values)
-                    mission.nom_representant_entite = str(representant)
-                    mission.heure_controle = "09h30"
-                    mission.deliberation_numero = f"DEL-{date_mission.year}-{i + 1:03d}"
-                    mission.lieu_signature = "Libreville"
-                    mission.date_signature = date_mission + datetime.timedelta(days=5)
-                    mission.heure_signature = "12h15"
+                    controle.mode_pv = random.choice(ModePV.values)
+                    controle.nom_representant_entite = str(representant)
+                    controle.heure_controle = "09h30"
+                    controle.deliberation_numero = f"DEL-{date_mission.year}-{i + 1:03d}"
+                    controle.lieu_signature = "Libreville"
+                    controle.date_signature = date_mission + datetime.timedelta(days=5)
+                    controle.heure_signature = "12h15"
 
-                _journaliser_progression(mission, chef_user, statut)
+                _journaliser_progression(controle, chef_user, statut)
 
-                mission.statut = statut
-                mission.save()
+                controle.statut = statut
+                controle.save()
 
             self.stdout.write(self.style.SUCCESS(
                 f"{NB_MISSIONS} missions de démo créées, réparties sur {NB_ANNEES} ans "

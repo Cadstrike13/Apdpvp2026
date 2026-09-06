@@ -27,17 +27,17 @@ def entite_list(request):
 
     lignes = []
     for entite in entites:
-        missions = entite.missions.all()
-        reponses = ReponseTraitement.objects.filter(mission__entites_controlees=entite).exclude(evaluation="")
+        controles = entite.controles.select_related("mission")
+        reponses = ReponseTraitement.objects.filter(controle__entite=entite).exclude(evaluation="")
         taux, total_eval = _taux_conformite(reponses)
         lignes.append({
             "entite": entite,
-            "nb_missions": missions.count(),
-            "derniere_mission": missions.order_by("-date_mission").first(),
+            "nb_missions": controles.count(),
+            "dernier_controle": controles.order_by("-mission__date_mission").first(),
             "taux_conformite": taux,
         })
     lignes.sort(
-        key=lambda ligne: ligne["derniere_mission"].date_mission if ligne["derniere_mission"] else date.min,
+        key=lambda ligne: ligne["dernier_controle"].mission.date_mission if ligne["dernier_controle"] else date.min,
         reverse=True,
     )
 
@@ -47,14 +47,14 @@ def entite_list(request):
 @login_required
 def entite_detail(request, entite_pk):
     entite = get_object_or_404(EntiteControlee, pk=entite_pk)
-    missions = entite.missions.order_by("-date_mission")
+    controles = entite.controles.select_related("mission").order_by("-mission__date_mission")
 
-    missions_info = []
-    for mission in missions:
-        taux, total_eval = _taux_conformite(mission.reponses.exclude(evaluation=""))
-        missions_info.append({"mission": mission, "taux_conformite": taux, "total_evalue": total_eval})
+    controles_info = []
+    for controle in controles:
+        taux, total_eval = _taux_conformite(controle.reponses.exclude(evaluation=""))
+        controles_info.append({"controle": controle, "taux_conformite": taux, "total_evalue": total_eval})
 
-    reponses_entite = ReponseTraitement.objects.filter(mission__entites_controlees=entite).exclude(evaluation="")
+    reponses_entite = ReponseTraitement.objects.filter(controle__entite=entite).exclude(evaluation="")
     taux_conformite_global, total_evalue_entite = _taux_conformite(reponses_entite)
     traitements_couverts = set(reponses_entite.values_list("traitement", flat=True))
     traitements = [
@@ -64,9 +64,9 @@ def entite_detail(request, entite_pk):
 
     personnes_par_id = {}
     for pi in (
-        PersonneInterrogee.objects.filter(mission__entites_controlees=entite)
+        PersonneInterrogee.objects.filter(controle__entite=entite)
         .select_related("personne")
-        .order_by("mission__date_mission")
+        .order_by("controle__mission__date_mission")
     ):
         ligne = personnes_par_id.setdefault(
             pi.personne_id, {"personne": pi.personne, "poste": pi.poste_snapshot, "nb_missions": 0}
@@ -79,8 +79,8 @@ def entite_detail(request, entite_pk):
         "entites/entite_detail.html",
         {
             "entite": entite,
-            "missions_info": missions_info,
-            "nb_missions": len(missions_info),
+            "controles_info": controles_info,
+            "nb_missions": len(controles_info),
             "taux_conformite_global": taux_conformite_global,
             "total_evalue_entite": total_evalue_entite,
             "traitements": traitements,

@@ -1,18 +1,18 @@
 <nav class="flex flex-wrap gap-2 mt-3 text-sm">
-  <a href="{% url 'missions:questionnaire_checklist' mission.pk %}"
+  <a href="{% url 'missions:questionnaire_checklist' controle.pk %}"
      class="px-3 py-1.5 rounded-md font-medium transition-colors
             {% if not page %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
     Traitements déclarés
   </a>
   {% for p in page_range %}
-    <a href="{% url 'missions:questionnaire_page' mission.pk p %}"
+    <a href="{% url 'missions:questionnaire_page' controle.pk p %}"
        class="px-3 py-1.5 rounded-md font-medium transition-colors
               {% if p == page %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
       Page {{ p }}
     </a>
   {% endfor %}
-  <a href="{% url 'missions:mission_detail' mission.pk %}"
+  <a href="{% url 'missions:controle_entite_detail' controle.pk %}"
      class="px-3 py-1.5 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors ml-2">
-    ← Retour à la mission
+    ← Retour au contrôle
   </a>
 </nav>

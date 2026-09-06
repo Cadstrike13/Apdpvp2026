@@ -1,11 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
 <h1 class="text-2xl font-semibold mb-6 text-gray-900">Nouvelle mission</h1>
-<form method="post" enctype="multipart/form-data" class="space-y-6 max-w-2xl">
+<form method="post" enctype="multipart/form-data" class="max-w-2xl">
   {% csrf_token %}
 
   <section class="bg-white shadow-sm border border-gray-100 rounded-lg p-6 space-y-4">
-    <h2 class="font-semibold text-gray-900">Informations de la mission</h2>
+    <div>
+      <h2 class="font-semibold text-gray-900">Informations de la mission</h2>
+      <p class="text-xs text-gray-500 mt-1">
+        Chaque entité sélectionnée démarre son propre contrôle indépendant (groupe, questionnaire,
+        PV). Le groupe de contrôle de chacune s'affecte ensuite depuis la fiche mission.
+      </p>
+    </div>
     {% if form.non_field_errors %}
     <p class="text-red-600 text-sm">{{ form.non_field_errors|join:", " }}</p>
     {% endif %}
@@ -17,41 +23,9 @@
       {% if field.errors %}<p class="text-red-600 text-sm mt-1">{{ field.errors|join:", " }}</p>{% endif %}
     </div>
     {% endfor %}
+    <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm">
+      Créer
+    </button>
   </section>
-
-  <section class="bg-white shadow-sm border border-gray-100 rounded-lg p-6 space-y-4">
-    <div>
-      <h2 class="font-semibold text-gray-900">Groupe de contrôle</h2>
-      <p class="text-xs text-gray-500 mt-1">
-        Optionnel à cette étape — chef de mission et agents contrôleurs pourront aussi être
-        ajoutés depuis la fiche mission une fois créée.
-      </p>
-    </div>
-    {{ membre_formset.management_form }}
-    {% if membre_formset.non_form_errors %}
-    <p class="text-red-600 text-sm">{{ membre_formset.non_form_errors|join:", " }}</p>
-    {% endif %}
-    <div class="space-y-3">
-      {% for membre_form in membre_formset %}
-      <div class="flex flex-wrap items-end gap-3 pb-3 border-b border-gray-50 last:border-0 last:pb-0">
-        <div class="flex-1 min-w-40">
-          <label class="block text-xs font-medium mb-1 text-gray-600">{{ membre_form.agent.label }}</label>
-          {{ membre_form.agent }}
-        </div>
-        <div class="min-w-36">
-          <label class="block text-xs font-medium mb-1 text-gray-600">{{ membre_form.role.label }}</label>
-          {{ membre_form.role }}
-        </div>
-        {% if membre_form.errors %}
-        <p class="text-red-600 text-xs w-full">{{ membre_form.errors|join:", " }}</p>
-        {% endif %}
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm">
-    Créer
-  </button>
 </form>
 {% endblock %}

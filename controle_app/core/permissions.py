@@ -27,41 +27,43 @@ def require_groupe(*groupes):
     return decorateur
 
 
-def require_membre_mission(vue):
-    """Tout membre (chef ou agent) du groupe de contrôle de CETTE mission."""
+def require_membre_controle(vue):
+    """Tout membre (chef ou agent) du groupe de contrôle de CE contrôle
+    d'entité (ControleEntite) — le groupe de contrôle est propre à chaque
+    entité, pas à la mission entière."""
 
     @wraps(vue)
     @login_required
-    def wrapper(request, mission_pk, *args, **kwargs):
-        from missions.models import MissionControle
+    def wrapper(request, controle_pk, *args, **kwargs):
+        from missions.models import ControleEntite
 
-        mission = get_object_or_404(MissionControle, pk=mission_pk)
-        request.mission = mission
+        controle = get_object_or_404(ControleEntite, pk=controle_pk)
+        request.controle = controle
         if request.user.is_superuser:
-            return vue(request, mission_pk, *args, **kwargs)
-        est_membre = mission.membres_groupe.filter(agent__user=request.user).exists()
+            return vue(request, controle_pk, *args, **kwargs)
+        est_membre = controle.membres_groupe.filter(agent__user=request.user).exists()
         if not est_membre:
-            raise PermissionDenied("Vous n'êtes pas membre du groupe de contrôle de cette mission.")
-        return vue(request, mission_pk, *args, **kwargs)
+            raise PermissionDenied("Vous n'êtes pas membre du groupe de contrôle de cette entité.")
+        return vue(request, controle_pk, *args, **kwargs)
 
     return wrapper
 
 
-def require_chef_mission(vue):
-    """Uniquement le chef de CETTE mission (validation)."""
+def require_chef_controle(vue):
+    """Uniquement le chef de CE contrôle d'entité (validation)."""
 
     @wraps(vue)
     @login_required
-    def wrapper(request, mission_pk, *args, **kwargs):
-        from missions.models import MissionControle
+    def wrapper(request, controle_pk, *args, **kwargs):
+        from missions.models import ControleEntite
 
-        mission = get_object_or_404(MissionControle, pk=mission_pk)
-        request.mission = mission
+        controle = get_object_or_404(ControleEntite, pk=controle_pk)
+        request.controle = controle
         if request.user.is_superuser:
-            return vue(request, mission_pk, *args, **kwargs)
-        est_chef = mission.membres_groupe.chefs().filter(agent__user=request.user).exists()
+            return vue(request, controle_pk, *args, **kwargs)
+        est_chef = controle.membres_groupe.chefs().filter(agent__user=request.user).exists()
         if not est_chef:
             raise PermissionDenied("Seul le chef de mission peut valider ce contrôle.")
-        return vue(request, mission_pk, *args, **kwargs)
+        return vue(request, controle_pk, *args, **kwargs)
 
     return wrapper

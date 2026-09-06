@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="mb-4">
-  <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">{{ mission.entites_str }} — Questionnaire</h1>
+  <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">{{ controle.entite }} — Questionnaire</h1>
   <p class="text-gray-500 text-sm">Page {{ page }}/5 — Accès et transferts internationaux</p>
   {% include "missions/_questionnaire_nav.html" %}
 </div>
 
-{% if mission.est_verrouillee %}
+{% if controle.est_verrouillee %}
 <p class="mb-4 rounded-md bg-amber-50 border border-amber-100 text-amber-800 px-4 py-2 text-sm">🔒 Mission verrouillée : lecture seule.</p>
 {% endif %}
 
@@ -108,7 +108,7 @@
   </div>
   {% endfor %}
 
-  {% if not mission.est_verrouillee %}
+  {% if not controle.est_verrouillee %}
   <div class="mt-6 flex justify-end">
     <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm">
       Enregistrer et continuer
