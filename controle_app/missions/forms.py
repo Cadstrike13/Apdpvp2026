@@ -134,16 +134,28 @@ class RapportSigneForm(TailwindModelForm):
 
 class InfosPVForm(TailwindModelForm):
     """Informations nécessaires à la génération du procès-verbal, absentes
-    des autres formulaires (voir missions/generate_pv.py)."""
+    des autres formulaires (voir missions/generate_pv.py). La délibération
+    n'en fait pas partie — voir DeliberationForm ci-dessous : elle n'est
+    demandée qu'au moment de générer le PV (clôture), pas en amont."""
 
     class Meta:
         model = ControleEntite
         fields = [
             "mode_pv", "nom_representant_entite", "heure_controle",
-            "deliberation_numero", "deliberation_organe",
             "lieu_signature", "date_signature", "heure_signature",
         ]
         widgets = {"date_signature": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")}
+
+
+class DeliberationForm(TailwindModelForm):
+    """Numéro/organe de la délibération portant adoption de la procédure des
+    missions de contrôle — propre à chaque entité contrôlée, demandé au
+    moment de générer le procès-verbal (voir pv_marquer_genere), pas avant :
+    c'est la clôture du contrôle qui l'exige, pas une étape préparatoire."""
+
+    class Meta:
+        model = ControleEntite
+        fields = ["deliberation_numero", "deliberation_organe"]
 
 
 class EvaluationForm(TailwindModelForm):
@@ -160,16 +172,19 @@ class EvaluationForm(TailwindModelForm):
 EvaluationFormSet = modelformset_factory(ReponseTraitement, form=EvaluationForm, extra=0)
 
 
-class DeclarationChecklistForm(TailwindModelForm):
-    """Une ligne de la checkliste des traitements déclarés — étape
-    préalable au questionnaire (voir missions/views.py::questionnaire_checklist)."""
+class TraitementIdentifieForm(TailwindModelForm):
+    """Une ligne de la checkliste des traitements identifiés — étape
+    préalable au questionnaire (voir missions/views.py::questionnaire_checklist).
+    Coché = ce traitement est dans le périmètre de l'audit (déclaré par
+    l'entité ou découvert par le contrôleur), distinct de la déclaration
+    elle-même (`ReponsePage1.declaration_effectuee`, saisie page 1)."""
 
     class Meta:
-        model = ReponsePage1
-        fields = ["declaration_effectuee"]
+        model = ReponseTraitement
+        fields = ["traitement_identifie"]
 
 
-DeclarationChecklistFormSet = modelformset_factory(ReponsePage1, form=DeclarationChecklistForm, extra=0)
+TraitementIdentifieFormSet = modelformset_factory(ReponseTraitement, form=TraitementIdentifieForm, extra=0)
 
 
 class ReponsePage1Form(TailwindModelForm):

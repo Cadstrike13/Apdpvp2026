@@ -13,6 +13,7 @@ IDENTIFIANTS_DEV = {
     "admin": {"password": "admin1234", "superuser": True},
     "chef_test": {"password": "test1234", "role": GROUPE_CHEF_MISSION, "agent_external_id": "AG-001"},
     "agent_test": {"password": "test1234", "role": GROUPE_AGENT, "agent_external_id": "AG-002"},
+    "juriste_test": {"password": "test1234", "role": GROUPE_AGENT, "agent_external_id": "AG-003"},
 }
 
 
@@ -32,7 +33,7 @@ class Command(BaseCommand):
         admin.set_password(IDENTIFIANTS_DEV["admin"]["password"])
         admin.save()
 
-        for username in ("chef_test", "agent_test"):
+        for username in ("chef_test", "agent_test", "juriste_test"):
             config = IDENTIFIANTS_DEV[username]
             user, _ = User.objects.get_or_create(username=username)
             user.set_password(config["password"])

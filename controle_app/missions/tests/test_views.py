@@ -31,10 +31,13 @@ def creer_utilisateur_agent(username, external_id):
 
 
 def declarer_tous_traitements(controle):
-    """Coche 'Déclaration effectuée' pour les 10 traitements — équivalent à
-    passer par la checkliste (questionnaire_checklist) avant les pages 1 à 5,
-    qui ne détaillent que les traitements déclarés."""
+    """Identifie les 10 traitements (checkliste) et coche 'Déclaration
+    effectuée' sur chacun — équivalent à passer par la checkliste
+    (questionnaire_checklist) avant les pages 1 à 5, qui ne détaillent que
+    les traitements identifiés."""
     for reponse in controle.reponses.select_related("page1"):
+        reponse.traitement_identifie = True
+        reponse.save()
         reponse.page1.declaration_effectuee = True
         reponse.page1.save()
 
@@ -123,6 +126,41 @@ class PermissionsTests(TestCase):
         self.client.login(username="exterieur", password="pass-123")
         r = self.client.get(reverse("missions:mission_detail", args=[self.controle.mission.pk]))
         self.assertEqual(r.status_code, 403)
+
+    def test_mission_list_scope_aux_missions_dont_lutilisateur_est_membre(self):
+        autre_controle = creer_controle()
+        self.client.login(username="agent", password="pass-123")
+        r = self.client.get(reverse("missions:mission_list"))
+        missions = list(r.context["missions"])
+        self.assertIn(self.controle.mission, missions)
+        self.assertNotIn(autre_controle.mission, missions)
+
+    def test_mission_list_vide_pour_un_utilisateur_sans_controle(self):
+        self.client.login(username="exterieur", password="pass-123")
+        r = self.client.get(reverse("missions:mission_list"))
+        self.assertEqual(list(r.context["missions"]), [])
+
+    def test_mission_list_admin_voit_toutes_les_missions(self):
+        autre_controle = creer_controle()
+        superuser = User.objects.create_superuser(username="admin", password="pass-123", email="a@a.com")
+        self.client.force_login(superuser)
+        r = self.client.get(reverse("missions:mission_list"))
+        missions = list(r.context["missions"])
+        self.assertIn(self.controle.mission, missions)
+        self.assertIn(autre_controle.mission, missions)
+
+    def test_dashboard_scope_aux_missions_dont_lutilisateur_est_membre(self):
+        creer_controle()
+        self.client.login(username="agent", password="pass-123")
+        r = self.client.get(reverse("missions:dashboard") + "?periode=all")
+        self.assertEqual(r.context["total_missions"], 1)
+
+    def test_dashboard_admin_voit_toutes_les_missions(self):
+        creer_controle()
+        superuser = User.objects.create_superuser(username="admin", password="pass-123", email="a@a.com")
+        self.client.force_login(superuser)
+        r = self.client.get(reverse("missions:dashboard") + "?periode=all")
+        self.assertEqual(r.context["total_missions"], 2)
 
 
 class DashboardViewsTests(TestCase):
@@ -343,18 +381,18 @@ class QuestionnaireChecklistTests(TestCase):
         self.client.force_login(self.user)
         self.controle = creer_controle()
 
-    def _donnees_checklist(self, codes_declares):
+    def _donnees_checklist(self, codes_identifies):
         r = self.client.get(reverse("missions:questionnaire_checklist", args=[self.controle.pk]))
         formset = r.context["formset"]
         lignes = r.context["lignes"]
         data = {f"form-{k}": v for k, v in formset.management_form.initial.items()}
-        for i, (form, page1) in enumerate(lignes):
-            data[f"form-{i}-id"] = page1.pk
-            if page1.reponse.traitement in codes_declares:
-                data[f"form-{i}-declaration_effectuee"] = "on"
+        for i, (form, reponse) in enumerate(lignes):
+            data[f"form-{i}-id"] = reponse.pk
+            if reponse.traitement in codes_identifies:
+                data[f"form-{i}-traitement_identifie"] = "on"
         return data
 
-    def test_aucun_traitement_declare_par_defaut(self):
+    def test_aucun_traitement_identifie_par_defaut(self):
         r = self.client.get(reverse("missions:questionnaire_page", args=[self.controle.pk, 1]))
         self.assertEqual(list(r.context["lignes"]), [])
 
@@ -367,7 +405,7 @@ class QuestionnaireChecklistTests(TestCase):
         codes = {ligne.reponse.traitement for _, ligne in r.context["lignes"]}
         self.assertEqual(codes, {"a", "b"})
 
-    def test_traitements_non_declares_classes_non_conformes(self):
+    def test_traitements_non_identifies_classes_non_conformes(self):
         data = self._donnees_checklist({"a"})
         self.client.post(reverse("missions:questionnaire_checklist", args=[self.controle.pk]), data)
 
@@ -378,10 +416,10 @@ class QuestionnaireChecklistTests(TestCase):
             else:
                 self.assertEqual(reponse.evaluation, EvaluationConformite.NC)
 
-    def test_re_declarer_ne_touche_pas_a_une_evaluation_deja_forcee(self):
+    def test_re_identifier_ne_touche_pas_a_une_evaluation_deja_forcee(self):
         """Une fois classé NC par la checkliste, cocher le traitement comme
-        déclaré ensuite ne doit pas modifier l'évaluation déjà enregistrée —
-        seule l'évaluation manuelle (page dédiée) le fait."""
+        identifié ensuite ne doit pas modifier l'évaluation déjà
+        enregistrée — seule l'évaluation manuelle (page dédiée) le fait."""
         self.client.post(
             reverse("missions:questionnaire_checklist", args=[self.controle.pk]),
             self._donnees_checklist(set()),
@@ -395,6 +433,21 @@ class QuestionnaireChecklistTests(TestCase):
         )
         reponse_a.refresh_from_db()
         self.assertEqual(reponse_a.evaluation, EvaluationConformite.NC)
+
+    def test_traitement_identifie_mais_non_declare_reste_accessible(self):
+        """Le contrôleur peut identifier (auditer) un traitement découvert
+        sans qu'il ait été déclaré par l'entité — page 1 accessible,
+        declaration_effectuee reste False, ce qui plafonne le verdict à NC
+        (suggestion_verdict) sans empêcher de documenter le traitement."""
+        data = self._donnees_checklist({"a"})
+        self.client.post(reverse("missions:questionnaire_checklist", args=[self.controle.pk]), data)
+
+        r = self.client.get(reverse("missions:questionnaire_page", args=[self.controle.pk, 1]))
+        codes = {ligne.reponse.traitement for _, ligne in r.context["lignes"]}
+        self.assertEqual(codes, {"a"})
+
+        reponse_a = self.controle.reponses.get(traitement="a")
+        self.assertFalse(reponse_a.page1.declaration_effectuee)
 
 
 @override_settings(MEDIA_ROOT=MEDIA_ROOT_TEST)

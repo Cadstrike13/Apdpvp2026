@@ -21,7 +21,7 @@
     <div class="flex flex-wrap gap-2 mb-5">
       <a href="{% url 'missions:questionnaire_checklist' controle.pk %}"
          class="px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-sm font-medium">
-        Traitements déclarés
+        Traitements identifiés
       </a>
       {% for p in page_range %}
       <a href="{% url 'missions:questionnaire_page' controle.pk p %}"
@@ -37,13 +37,13 @@
       <div>
         <div class="flex justify-between text-xs text-gray-600 mb-1">
           <span>{{ reponse.get_traitement_display }}</span>
-          {% if reponse.page1.declaration_effectuee %}
+          {% if reponse.traitement_identifie %}
           <span>{{ reponse.pourcentage_complete }}%</span>
           {% else %}
-          <span class="text-amber-700">Non déclaré</span>
+          <span class="text-amber-700">Non identifié</span>
           {% endif %}
         </div>
-        {% if reponse.page1.declaration_effectuee %}
+        {% if reponse.traitement_identifie %}
         <div class="w-full bg-gray-100 rounded-full h-2">
           <div class="h-2 rounded-full transition-all
                       {% if reponse.pourcentage_complete == 100 %}bg-green-500
@@ -67,30 +67,15 @@
   </section>
 
   <section class="bg-white shadow-sm border border-gray-100 rounded-lg p-6">
-    <h2 class="font-semibold mb-4 text-gray-900">Groupe de contrôle</h2>
-    <ul class="space-y-1 text-sm mb-4 text-gray-700">
+    <h2 class="font-semibold mb-1 text-gray-900">Groupe de contrôle</h2>
+    <p class="text-xs text-gray-500 mb-4">Affecté par l'admin depuis la fiche mission.</p>
+    <ul class="space-y-1 text-sm text-gray-700">
       {% for membre in controle.membres_groupe.all %}
       <li>{{ membre.agent }} — <span class="text-gray-500">{{ membre.get_role_display }}</span></li>
       {% empty %}
       <li class="text-gray-500">Aucun membre pour l'instant.</li>
       {% endfor %}
     </ul>
-    {% if not controle.est_verrouillee %}
-    <form method="post" action="{% url 'missions:membre_ajouter' controle.pk %}" class="flex gap-2 items-end flex-wrap">
-      {% csrf_token %}
-      <div>
-        <label class="block text-xs font-medium mb-1 text-gray-600">{{ membre_form.agent.label }}</label>
-        {{ membre_form.agent }}
-      </div>
-      <div>
-        <label class="block text-xs font-medium mb-1 text-gray-600">{{ membre_form.role.label }}</label>
-        {{ membre_form.role }}
-      </div>
-      <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
-        Ajouter
-      </button>
-    </form>
-    {% endif %}
   </section>
 
   <section class="bg-white shadow-sm border border-gray-100 rounded-lg p-6">
@@ -214,14 +199,6 @@
         {{ infos_pv_form.heure_controle }}
       </div>
       <div>
-        <label class="block text-xs font-medium mb-1 text-gray-600">{{ infos_pv_form.deliberation_numero.label }}</label>
-        {{ infos_pv_form.deliberation_numero }}
-      </div>
-      <div>
-        <label class="block text-xs font-medium mb-1 text-gray-600">{{ infos_pv_form.deliberation_organe.label }}</label>
-        {{ infos_pv_form.deliberation_organe }}
-      </div>
-      <div>
         <label class="block text-xs font-medium mb-1 text-gray-600">{{ infos_pv_form.lieu_signature.label }}</label>
         {{ infos_pv_form.lieu_signature }}
       </div>
@@ -311,9 +288,18 @@
           l'évaluation, puis <strong>verrouille ce contrôle</strong>. À imprimer, faire signer,
           puis scanner.
         </p>
-        <form method="post" action="{% url 'missions:pv_marquer_genere' controle.pk %}">
+        <form method="post" action="{% url 'missions:pv_marquer_genere' controle.pk %}" class="space-y-3">
           {% csrf_token %}
-          <div class="flex justify-end gap-2">
+          <div>
+            <label class="block text-xs font-medium mb-1 text-gray-600">{{ deliberation_form.deliberation_numero.label }}</label>
+            {{ deliberation_form.deliberation_numero }}
+            <p class="text-xs text-gray-400 mt-1">Délibération portant adoption de la procédure des missions de contrôle, propre à cette entité.</p>
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1 text-gray-600">{{ deliberation_form.deliberation_organe.label }}</label>
+            {{ deliberation_form.deliberation_organe }}
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
             <button type="button" onclick="document.getElementById('modale-pv-generer').classList.add('hidden')"
                     class="px-3 py-2 rounded-md text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
               Annuler

@@ -46,9 +46,17 @@ identifiants fixes pour tester manuellement les permissions par rôle — voir
 
 | Compte       | Mot de passe | Rôle                                                                 |
 |--------------|--------------|------------------------------------------------------------------------|
-| `admin`      | `admin1234`  | Superuser (bypass toutes permissions)                                  |
-| `chef_test`  | `test1234`   | Lié à l'agent mock AG-001 (Obiang Marie), groupe « Chef de mission »   |
-| `agent_test` | `test1234`   | Lié à l'agent mock AG-002 (Ndong Paul), groupe « Agent contrôleur »    |
+| `admin`        | `admin1234`  | Superuser (bypass toutes permissions)                                  |
+| `chef_test`    | `test1234`   | Lié à l'agent mock AG-001 (Obiang Marie), groupe « Chef de mission »   |
+| `agent_test`   | `test1234`   | Lié à l'agent mock AG-002 (Ndong Paul), groupe « Agent contrôleur »    |
+| `juriste_test` | `test1234`   | Lié à l'agent mock AG-003 (Mba Sylvie), groupe « Agent contrôleur »    |
+
+Un utilisateur non-admin ne voit que les missions où il est membre d'au
+moins un `ControleEntite` (`missions.views._missions_visibles` — même
+filtre que `mission_detail`/`require_membre_controle` :
+`controles_entites__membres_groupe__agent__user`). `mission_list` et
+`dashboard` appliquent ce filtre ; seul l'admin (superuser ou groupe
+« Administrateur ») voit tout.
 
 Idempotent (relançable sans dupliquer). Crée aussi une entité de démo
 « ACME SA (démo) ».
@@ -141,27 +149,41 @@ rempli par les membres du groupe de contrôle de CETTE entité.
   dédié).
 - **Groupe de contrôle** : chaque `ControleEntite` a un seul chef
   (`MembreGroupeControle.role`, contrainte DB `un_seul_chef_par_controle`)
-  et un ou plusieurs agents. ⚠️ Cette contrainte référence `controle`, un
-  champ absent de `MembreGroupeControleForm` — Django exclut donc les
-  champs absents du formulaire de la validation par `form.is_valid()`
-  (`validate_constraints` respecte cet `exclude`), la violation ne se
-  déclenche qu'au `.save()` : `membre_ajouter` doit attraper ce
-  `ValidationError` explicitement (pas seulement `if form.is_valid()`).
+  et un ou plusieurs agents, **affectés uniquement par l'admin**
+  (`membre_ajouter` → `@require_groupe(GROUPE_ADMINISTRATEUR)`, formulaire
+  sur `mission_detail.html` — jamais sur `controle_entite_detail.html`, qui
+  n'affiche le groupe qu'en lecture seule). ⚠️ Cette contrainte référence
+  `controle`, un champ absent de `MembreGroupeControleForm` — Django exclut
+  donc les champs absents du formulaire de la validation par
+  `form.is_valid()` (`validate_constraints` respecte cet `exclude`), la
+  violation ne se déclenche qu'au `.save()` : `membre_ajouter` doit attraper
+  ce `ValidationError` explicitement (pas seulement `if form.is_valid()`).
 - **ReponseTraitement** : une ligne pivot par `(controle, traitement)` créée
   automatiquement à la création du `ControleEntite` (signal `post_save`),
   avec 5 sous-modèles en `OneToOne` (un par page du questionnaire
   d'origine). Certains champs ne sont pertinents que pour certains
   traitements (géolocalisation, biométrie, vidéosurveillance,
   interconnexion, transfert) — voir `reponse_traitement_fields.md`.
-- **Checkliste des traitements déclarés** (`questionnaire_checklist`, avant
-  la page 1) : coche `ReponsePage1.declaration_effectuee` pour chacun des 10
-  traitements — les pages 1 à 5 ne détaillent ensuite que les traitements
-  cochés (`questionnaire_page` filtre sur `declaration_effectuee=True`). Les
-  traitements non cochés sont directement classés `evaluation=NC` (sauf s'ils
-  ont déjà une évaluation — jamais écrasée), cohérent avec la règle « tout
-  traitement non déclaré est non conforme » de `suggestion_verdict()`. La
-  page d'évaluation (`evaluation_page`) continue elle de lister les 10
-  traitements, déclarés ou non.
+- **Checkliste des traitements identifiés** (`questionnaire_checklist`,
+  avant la page 1) : coche `ReponseTraitement.traitement_identifie` pour
+  chacun des 10 traitements — les pages 1 à 5 ne détaillent ensuite que les
+  traitements identifiés (`questionnaire_page` filtre sur
+  `reponse__traitement_identifie=True`). **Distinct** de
+  `ReponsePage1.declaration_effectuee` (saisi sur la page 1 elle-même, une
+  fois le traitement identifié) : un traitement peut être identifié
+  (accessible) sans être déclaré — le contrôleur qui découvre un traitement
+  non déclaré en cours d'audit l'identifie ici pour pouvoir le documenter,
+  et laisse `declaration_effectuee=False` sur sa page 1, ce qui plafonne
+  quand même le verdict à NC (`suggestion_verdict()`). Un traitement jamais
+  identifié est directement classé `evaluation=NC` (sauf s'il a déjà une
+  évaluation — jamais écrasée), cohérent avec « tout traitement non déclaré
+  est non conforme ». La page d'évaluation (`evaluation_page`) continue de
+  lister les 10 traitements, identifiés ou non.
+- **Délibération à la clôture, pas en amont** : `deliberation_numero`/
+  `deliberation_organe` (`ControleEntite`) sont saisis via `DeliberationForm`
+  **dans le modal « Générer le procès-verbal »** (`pv_marquer_genere`), pas
+  dans `InfosPVForm` (rempli en amont) — la délibération n'est exigée qu'au
+  moment de clore le contrôle.
 
 ## Documents de référence (progressive disclosure)
 

@@ -47,6 +47,12 @@
               <span class="text-gray-400">Aucun membre affecté</span>
             {% endif %}
           {% endwith %}
+          {% if est_admin and not controle.est_verrouillee %}
+          <button type="button" onclick="document.getElementById('modale-membre-{{ controle.pk }}').classList.remove('hidden')"
+                  class="block mt-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+            + Affecter un membre
+          </button>
+          {% endif %}
         </td>
         <td class="px-4 py-3 text-right">
           <a href="{% url 'missions:controle_entite_detail' controle.pk %}" class="text-blue-600 hover:text-blue-800 font-medium">
@@ -60,6 +66,42 @@
     </tbody>
   </table>
 </div>
+
+{% if est_admin %}
+{% for controle in controles %}
+{% if not controle.est_verrouillee %}
+<div id="modale-membre-{{ controle.pk }}" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+  <div class="bg-white rounded-lg shadow-lg max-w-sm w-full p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-gray-900">Affecter un membre — {{ controle.entite }}</h3>
+      <button type="button" onclick="document.getElementById('modale-membre-{{ controle.pk }}').classList.add('hidden')"
+              class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+    </div>
+    <form method="post" action="{% url 'missions:membre_ajouter' controle.pk %}" class="space-y-3">
+      {% csrf_token %}
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ membre_form.agent.label }}</label>
+        {{ membre_form.agent }}
+      </div>
+      <div>
+        <label class="block text-xs font-medium mb-1 text-gray-600">{{ membre_form.role.label }}</label>
+        {{ membre_form.role }}
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="document.getElementById('modale-membre-{{ controle.pk }}').classList.add('hidden')"
+                class="px-3 py-2 rounded-md text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+          Annuler
+        </button>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white px-3 py-2 rounded-md text-sm font-medium">
+          Ajouter
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endif %}
 
 {% if est_admin %}
 <section class="bg-white shadow-sm border border-gray-100 rounded-lg p-6 max-w-lg">

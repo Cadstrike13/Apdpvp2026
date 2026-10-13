@@ -11,3 +11,5 @@ staticfiles/
 
 .vscode/
 .idea/
+
+node_modules/

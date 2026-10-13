@@ -2,7 +2,7 @@
   <a href="{% url 'missions:questionnaire_checklist' controle.pk %}"
      class="px-3 py-1.5 rounded-md font-medium transition-colors
             {% if not page %}bg-blue-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
-    Traitements déclarés
+    Traitements identifiés
   </a>
   {% for p in page_range %}
     <a href="{% url 'missions:questionnaire_page' controle.pk p %}"

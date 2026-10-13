@@ -19,23 +19,29 @@ Ouvrir `http://127.0.0.1:8000/`.
 
 ## 2. Comptes de test avec des rôles différents
 
-`seed_dev` crée directement 3 comptes avec des identifiants fixes (voir
+`seed_dev` crée directement 4 comptes avec des identifiants fixes (voir
 `core/management/commands/seed_dev.py` et `CLAUDE.md`) :
 
-| Compte       | Mot de passe | Rôle                                                                  |
-|--------------|--------------|------------------------------------------------------------------------|
-| `admin`      | `admin1234`  | Superuser (bypass toutes permissions)                                  |
-| `chef_test`  | `test1234`   | Lié à l'agent mock AG-001 (Obiang Marie), groupe « Chef de mission »   |
-| `agent_test` | `test1234`   | Lié à l'agent mock AG-002 (Ndong Paul), groupe « Agent contrôleur »    |
+| Compte         | Mot de passe | Rôle                                                                  |
+|----------------|--------------|------------------------------------------------------------------------|
+| `admin`        | `admin1234`  | Superuser (bypass toutes permissions)                                  |
+| `chef_test`    | `test1234`   | Lié à l'agent mock AG-001 (Obiang Marie), groupe « Chef de mission »   |
+| `agent_test`   | `test1234`   | Lié à l'agent mock AG-002 (Ndong Paul), groupe « Agent contrôleur »    |
+| `juriste_test` | `test1234`   | Lié à l'agent mock AG-003 (Mba Sylvie), groupe « Agent contrôleur »    |
 
 Une entité de démo « ACME SA (démo) » est aussi créée. L'UI change selon le
 rôle (bouton "Marquer rapport généré", upload scan et validation ne sont
 visibles que pour le **chef de mission**) — utiliser `chef_test` et
 `agent_test` pour comparer, `admin` pour débloquer rapidement un état.
 
-Utiliser 3 fenêtres de navigation différentes (ou navigation privée) pour
-être connecté simultanément en `admin`, `chef_test` et `agent_test`. La
-commande est idempotente : la relancer ne duplique rien.
+Chaque compte non-admin ne voit dans « Missions » et le tableau de bord que
+les missions où l'agent correspondant est membre d'au moins un
+`ControleEntite` — se connecter en `juriste_test` sans l'avoir ajoutée à un
+groupe de contrôle doit afficher une liste vide.
+
+Utiliser plusieurs fenêtres de navigation différentes (ou navigation privée)
+pour être connecté simultanément en `admin`, `chef_test`, `agent_test` et
+`juriste_test`. La commande est idempotente : la relancer ne duplique rien.
 
 ## 3. Page d'accueil (`/`)
 

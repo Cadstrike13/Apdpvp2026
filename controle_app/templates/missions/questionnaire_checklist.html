@@ -2,7 +2,7 @@
 {% block content %}
 <div class="mb-4">
   <h1 class="text-xl sm:text-2xl font-semibold text-gray-900">{{ controle.entite }} — Questionnaire</h1>
-  <p class="text-gray-500 text-sm">Traitements déclarés</p>
+  <p class="text-gray-500 text-sm">Traitements identifiés</p>
   {% include "missions/_questionnaire_nav.html" %}
 </div>
 
@@ -12,10 +12,12 @@
 
 <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-6 max-w-2xl">
   <p class="text-sm text-gray-600 mb-5">
-    Cochez les traitements que l'entité contrôlée a déclaré mettre en œuvre. Seuls les
-    traitements cochés seront détaillés dans les pages 1 à 5 — les traitements non cochés sont
-    directement classés <span class="font-medium text-amber-700">non conformes</span>, sans
-    questionnaire à remplir pour eux.
+    Cochez les traitements dans le périmètre de l'audit — déclarés par l'entité, ou découverts en
+    cours de contrôle même sans déclaration. Seuls les traitements cochés seront détaillés dans
+    les pages 1 à 5, où vous précisez si chacun a été déclaré (cette case ne le présuppose pas).
+    Les traitements non cochés restent directement classés
+    <span class="font-medium text-amber-700">non conformes</span>, sans questionnaire à remplir
+    pour eux.
   </p>
 
   <form method="post">
@@ -27,16 +29,19 @@
 
     <div class="divide-y divide-gray-100 mb-6">
       {% for form, ligne in lignes %}
-      <label class="flex items-center justify-between gap-3 py-3 cursor-pointer">
-        <span class="text-sm text-gray-900">
-          <span class="text-gray-400 mr-1">{{ ligne.reponse.traitement|upper }})</span>
-          {{ ligne.reponse.get_traitement_display }}
-        </span>
-        {{ form.declaration_effectuee }}
-      </label>
-      {% if form.errors %}
-      <p class="text-red-600 text-xs pb-2">{{ form.errors|join:", " }}</p>
-      {% endif %}
+      <div class="py-3">
+        <label class="flex items-center justify-between gap-3 cursor-pointer">
+          {{ form.id }}
+          <span class="text-sm text-gray-900">
+            <span class="text-gray-400 mr-1">{{ ligne.traitement|upper }})</span>
+            {{ ligne.get_traitement_display }}
+          </span>
+          {{ form.traitement_identifie }}
+        </label>
+        {% if form.errors %}
+        <p class="text-red-600 text-xs pt-1">{{ form.errors|join:", " }}</p>
+        {% endif %}
+      </div>
       {% endfor %}
     </div>
 

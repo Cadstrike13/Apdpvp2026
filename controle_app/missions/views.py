@@ -24,7 +24,7 @@ from personnes.models import Personne
 
 from .forms import (
     AjouterEntiteForm,
-    DeclarationChecklistFormSet,
+    DeliberationForm,
     EvaluationFormSet,
     InfosPVForm,
     MembreGroupeControleForm,
@@ -38,6 +38,7 @@ from .forms import (
     PersonneInterrogeeForm,
     RapportSigneForm,
     ScanSigneForm,
+    TraitementIdentifieFormSet,
 )
 from .generate_pv import generate_pv
 from .models import ControleEntite, EvaluationConformite, MembreGroupeControle, MissionControle, \
@@ -57,9 +58,19 @@ def _erreurs_en_message(form):
     return "; ".join(f"{champ} : {', '.join(erreurs)}" for champ, erreurs in form.errors.items())
 
 
+def _missions_visibles(user):
+    """Missions visibles par cet utilisateur : toutes pour l'admin, sinon
+    uniquement celles où il est membre du groupe de contrôle d'au moins une
+    entité (même filtre que `mission_detail`/`require_membre_controle`)."""
+    missions = MissionControle.objects.all()
+    if est_dans_groupe(user, GROUPE_ADMINISTRATEUR):
+        return missions
+    return missions.filter(controles_entites__membres_groupe__agent__user=user).distinct()
+
+
 @login_required
 def mission_list(request):
-    missions = MissionControle.objects.prefetch_related("controles_entites").order_by("-date_mission")
+    missions = _missions_visibles(request.user).prefetch_related("controles_entites").order_by("-date_mission")
     return render(
         request,
         "missions/mission_list.html",
@@ -102,7 +113,7 @@ def dashboard(request):
     if periode not in PERIODES_DASHBOARD_MOIS and periode != "all":
         periode = "12"
 
-    missions_qs = MissionControle.objects.all()
+    missions_qs = _missions_visibles(request.user)
     mois_axe = None
     if periode != "all":
         mois_axe = _mois_glissants(PERIODES_DASHBOARD_MOIS[periode])
@@ -125,11 +136,11 @@ def dashboard(request):
     conformes = reponses_qs.filter(evaluation__in=VERDICTS_CONFORMES).count()
     taux_conformite_global = round(conformes * 100 / total_evaluees) if total_evaluees else None
 
-    # Traitements non déclarés exclus : ils n'ont pas de questionnaire à
+    # Traitements non identifiés exclus : ils n'ont pas de questionnaire à
     # compléter (voir questionnaire_checklist), un avancement à 0% pour eux
     # n'indiquerait pas un retard mais un état normal et définitif.
     reponses_avancement = ReponseTraitement.objects.filter(
-        controle__in=controles_qs, page1__declaration_effectuee=True,
+        controle__in=controles_qs, traitement_identifie=True,
     ).select_related("page1", "page2", "page3", "page4", "page5")
     pourcentages_avancement = [r.pourcentage_complete for r in reponses_avancement]
     avancement_moyen = round(sum(pourcentages_avancement) / len(pourcentages_avancement)) if pourcentages_avancement else 0
@@ -297,6 +308,7 @@ def mission_detail(request, mission_pk):
             "controles": controles,
             "est_admin": est_admin,
             "entite_form": AjouterEntiteForm(),
+            "membre_form": MembreGroupeControleForm(),
         },
     )
 
@@ -340,10 +352,10 @@ def controle_entite_detail(request, controle_pk):
         {
             "controle": controle,
             "reponses": reponses,
-            "membre_form": MembreGroupeControleForm(),
             "personne_form": PersonneInterrogeeForm(),
             "observations_form": ObservationsForm(instance=controle),
             "infos_pv_form": InfosPVForm(instance=controle),
+            "deliberation_form": DeliberationForm(instance=controle),
             "page_range": range(1, 6),
             "est_chef": est_chef,
             "questionnaire_incomplet": controle.statut < StatutMission.QUESTIONNAIRE_COMPLETE,
@@ -358,9 +370,13 @@ def controle_entite_detail(request, controle_pk):
     )
 
 
-@require_chef_controle
+@require_groupe(GROUPE_ADMINISTRATEUR)
 def membre_ajouter(request, controle_pk):
-    controle = request.controle
+    """Réservé à l'admin — constituer/affecter le groupe de contrôle d'une
+    entité ne se fait pas depuis l'espace de travail de cette entité (voir
+    controle_entite_detail, lecture seule pour le groupe), mais depuis la
+    vue d'ensemble de la mission."""
+    controle = get_object_or_404(ControleEntite, pk=controle_pk)
     if request.method == "POST":
         form = MembreGroupeControleForm(request.POST, instance=MembreGroupeControle(controle=controle))
         if form.is_valid():
@@ -373,7 +389,7 @@ def membre_ajouter(request, controle_pk):
                 messages.error(request, "; ".join(exc.messages))
         else:
             messages.error(request, _erreurs_en_message(form))
-    return redirect("missions:controle_entite_detail", controle_pk=controle.pk)
+    return redirect("missions:mission_detail", mission_pk=controle.mission_id)
 
 
 @require_membre_controle
@@ -414,32 +430,32 @@ def personne_ajouter(request, controle_pk):
 
 @require_membre_controle
 def questionnaire_checklist(request, controle_pk):
-    """Étape préalable au questionnaire : cocher les traitements réellement
-    déclarés par l'entité contrôlée. Seuls les traitements déclarés sont
-    ensuite détaillés dans les pages 1 à 5 (voir questionnaire_page) — les
-    autres sont directement classés non conformes, sans qu'il soit besoin
-    de les détailler (voir ReponseTraitement.suggestion_verdict)."""
+    """Étape préalable au questionnaire : identifier les traitements dans
+    le périmètre de l'audit — parce que l'entité les a déclarés, ou parce
+    que le contrôleur les a découverts en cours d'audit (ex. en interrogeant
+    du personnel). Seuls les traitements identifiés sont ensuite détaillés
+    dans les pages 1 à 5 (voir questionnaire_page), où la déclaration
+    elle-même (`declaration_effectuee`) est renseignée traitement par
+    traitement — un traitement identifié mais non déclaré est possible, et
+    plafonne le verdict à NC (voir ReponseTraitement.suggestion_verdict).
+    Les traitements jamais identifiés sont directement classés non
+    conformes, sans qu'il soit besoin de les détailler."""
     controle = request.controle
-    queryset = (
-        ReponsePage1.objects.filter(reponse__controle=controle)
-        .select_related("reponse")
-        .order_by("reponse__traitement")
-    )
+    queryset = controle.reponses.order_by("traitement")
 
     if request.method == "POST":
-        formset = DeclarationChecklistFormSet(request.POST, queryset=queryset)
+        formset = TraitementIdentifieFormSet(request.POST, queryset=queryset)
         if formset.is_valid():
             formset.save()
             for form in formset.forms:
-                page1 = form.instance
-                reponse = page1.reponse
-                if not page1.declaration_effectuee and not reponse.evaluation:
+                reponse = form.instance
+                if not reponse.traitement_identifie and not reponse.evaluation:
                     reponse.evaluation = EvaluationConformite.NC
                     reponse.save()
             return redirect("missions:questionnaire_page", controle_pk=controle.pk, page=1)
         messages.error(request, "Le formulaire contient des erreurs — voir le détail ci-dessous.")
     else:
-        formset = DeclarationChecklistFormSet(queryset=queryset)
+        formset = TraitementIdentifieFormSet(queryset=queryset)
 
     return render(
         request,
@@ -461,14 +477,10 @@ def questionnaire_page(request, controle_pk, page):
         raise Http404("Page de questionnaire inconnue.")
 
     queryset = (
-        config["model"].objects.filter(reponse__controle=controle)
+        config["model"].objects.filter(reponse__controle=controle, reponse__traitement_identifie=True)
         .select_related("reponse")
         .order_by("reponse__traitement")
     )
-    if page == 1:
-        queryset = queryset.filter(declaration_effectuee=True)
-    else:
-        queryset = queryset.filter(reponse__page1__declaration_effectuee=True)
     FormSet = config["formset"]
 
     if request.method == "POST":
@@ -615,7 +627,8 @@ def pv_marquer_genere(request, controle_pk):
     """Génère le procès-verbal (missions/generate_pv.py) à partir des
     données du contrôle et le verrouille une fois le questionnaire complété.
     Le PV doit ensuite être imprimé, signé, puis son scan uploadé — le
-    rapport final n'est généré qu'après."""
+    rapport final n'est généré qu'après. Le numéro de délibération n'est
+    demandé qu'ici, au moment de la clôture — voir DeliberationForm."""
     controle = request.controle
     if request.method == "POST":
         if controle.statut < StatutMission.QUESTIONNAIRE_COMPLETE:
@@ -623,6 +636,12 @@ def pv_marquer_genere(request, controle_pk):
         elif controle.est_verrouillee:
             messages.error(request, "Le procès-verbal a déjà été généré pour ce contrôle.")
         else:
+            deliberation_form = DeliberationForm(request.POST, instance=controle)
+            if not deliberation_form.is_valid():
+                messages.error(request, _erreurs_en_message(deliberation_form))
+                return redirect("missions:controle_entite_detail", controle_pk=controle.pk)
+            deliberation_form.save()
+
             donnees = _construire_donnees_pv(controle)
             nom_fichier = f"pv_controle_{controle.pk}.docx"
             try:

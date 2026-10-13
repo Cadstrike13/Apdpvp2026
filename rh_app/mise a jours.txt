@@ -1,0 +1,49 @@
+les agent ont des statuts 
+
+Agent par cnpdcp
+inactif (congé, décédé, licencié, demission, retraité, rendu a leurs adminitration d'origine, stagiaire)
+
+contactuel (agent actif) CDI / CDD / Stagiaire
+
+trie par groupe, avec de statut type
+
+quand on survole un agent on doit pouvoir all" sur son profil
+
+
+ PAGE détail Agent
+
+la page détail d'un agent doit permetre de créer les actes administratif, buletin de salaire, présence au poste, etc.
+
+Ajout matricule ascoma
+
+pour les contrat ajouté de date de début de contrat / retraite
+
+avoir des rapels 
+
+affectation ajoute un format historique, pour le poste  service on ajoute 'en cours'
+
+
+il faut page dans laquel dossier déposé son en machine, différent des offres  
+
+autres personnel (remplacé usager)
+
+tous les documents doivent être join au dossier de l'agent, il faut que 
+
+calcul des heures suplémentaire, les montant
+
+la partien recrutement doit être supprimé ( pour l'insatnt), ajouter recrutement direct
+
+tab offre d'emploie
+
+offre d'emploie, recrutement, formation (similaire a une promotion), recrutement direct
+_______________________________________________________________________
+ajouter une partie patrimoione (comptabilité matière passé et en cours, npuvellte acquisition, etat de l'existant)
+
+partie Moyens
+
+partie contabilité - Finance
+
+
+_______________________________________________________________________dans la sections des moyen on doit repertorié les fournisseur de services et fournisseurs de fourniture
+
+annuaire pour les téléphones et adresses pour les agents

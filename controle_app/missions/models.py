@@ -430,6 +430,20 @@ class ReponseTraitement(models.Model):
     controle = models.ForeignKey(ControleEntite, on_delete=models.CASCADE, related_name="reponses")
     traitement = models.CharField(max_length=1, choices=Traitement.choices)
 
+    # Coché à la checkliste (questionnaire_checklist) — traitement dans le
+    # périmètre de l'audit, que ce soit parce que l'entité l'a déclaré ou
+    # parce que le contrôleur l'a découvert en cours d'audit. Distinct de
+    # `page1.declaration_effectuee` (la déclaration elle-même, saisie sur la
+    # page 1 UNE FOIS le traitement identifié) : un traitement peut être
+    # identifié (pages 1 à 5 accessibles) sans être déclaré — auquel cas
+    # `suggestion_verdict()` plafonne quand même le verdict à NC. Un
+    # traitement jamais identifié n'a pas de page à remplir et est classé
+    # NC automatiquement (voir questionnaire_checklist).
+    traitement_identifie = models.BooleanField(
+        "Traitement identifié", default=False,
+        help_text="Traitement dans le périmètre de l'audit (déclaré par l'entité ou découvert par le contrôleur).",
+    )
+
     # Évaluation du contrôleur, saisie après le questionnaire et avant la
     # génération du PV — alimente le tableau 3 du procès-verbal.
     evaluation = models.CharField(max_length=3, choices=EvaluationConformite.choices, blank=True)
