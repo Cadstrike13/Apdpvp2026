@@ -561,6 +561,56 @@ class ConstatSecurite(ConstatBase):
         verbose_name = "Constat — sécurité observable"
 
 
+class CheminListeBlanche(models.Model):
+    """
+    Chemin public testé par le scan sécurité (un GET, sans suivre de redirection).
+
+    La liste est éditable dans l'admin mais reste FERMÉE (CLAUDE.md, principe 1) :
+    chaque chemin est saisi et justifié par un humain, jamais généré ni importé
+    d'un dictionnaire. Le plafond MAX_ACTIFS empêche d'en faire une exploration
+    de répertoires ; clean() refuse jokers, remontées et requêtes.
+    """
+
+    MAX_ACTIFS = 50
+    _CARACTERES_INTERDITS = set("*?#%[]{}<>\\ \t\n")
+
+    chemin = models.CharField(max_length=200, unique=True, help_text="Ex. /.git/config — commence par « / ».")
+    justification = models.CharField(
+        max_length=255, help_text="Pourquoi ce chemin révèle une exposition accidentelle.",
+    )
+    actif = models.BooleanField(default=True)
+    date_ajout = models.DateTimeField(auto_now_add=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Chemin de la liste blanche"
+        verbose_name_plural = "Liste blanche des chemins (scan sécurité)"
+        ordering = ["chemin"]
+
+    def __str__(self):
+        return self.chemin
+
+    def clean(self):
+        chemin = (self.chemin or "").strip()
+        if not chemin.startswith("/") or chemin.startswith("//"):
+            raise ValidationError({"chemin": "Le chemin doit commencer par un seul « / » (pas d'URL ni d'hôte)."})
+        if ".." in chemin.split("/"):
+            raise ValidationError({"chemin": "Les remontées « .. » sont interdites."})
+        if self._CARACTERES_INTERDITS & set(chemin):
+            raise ValidationError({"chemin": "Jokers, requêtes, fragments et espaces sont interdits : un chemin exact."})
+        self.chemin = chemin
+        if self.actif:
+            autres = CheminListeBlanche.objects.filter(actif=True).exclude(pk=self.pk).count()
+            if autres >= self.MAX_ACTIFS:
+                raise ValidationError(
+                    f"Liste plafonnée à {self.MAX_ACTIFS} chemins actifs : désactiver un chemin avant d'en ajouter un."
+                )
+
+    @classmethod
+    def chemins_actifs(cls) -> tuple[str, ...]:
+        return tuple(cls.objects.filter(actif=True).order_by("chemin").values_list("chemin", flat=True)[: cls.MAX_ACTIFS])
+
+
 # ---------------------------------------------------------------------------
 # Phase 9 — CGU / CGV / mentions légales
 # ---------------------------------------------------------------------------

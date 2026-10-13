@@ -24,8 +24,15 @@ projet missions_controle pour faciliter un éventuel rapprochement.
    n'exploite une faille, ne soumet un formulaire ni ne devine d'URL.
    La cartographie suit seulement les liens publiés par la page d'accueil
    (profondeur 1, 40 pages, robots.txt respecté par défaut).
-   `CHEMINS_LISTE_BLANCHE` (`services/scanner_securite.py`) est une liste
-   fermée : ne jamais la transformer en exploration de répertoires.
+   La liste blanche du scan sécurité vit dans le modèle `CheminListeBlanche`,
+   éditable dans l'admin, et reste **fermée** : chemins exacts saisis et
+   justifiés par un humain (pas de joker, de `..` ni de requête), plafond de
+   `MAX_ACTIFS` chemins actifs, chaque changement journalisé, liste testée
+   archivée dans la preuve. Ne jamais l'alimenter depuis un dictionnaire,
+   un import en masse ou un résultat de scan, ni relever le plafond pour en
+   faire une exploration de répertoires. `CHEMINS_LISTE_BLANCHE`
+   (`services/scanner_securite.py`) n'est plus que la valeur par défaut du
+   scanner et l'amorce de la migration 0003.
 2. **Fait ≠ Qualification** — un constat (`ConstatBase` et ses sous-classes)
    ne porte que des faits. Le jugement de l'agent vit dans le modèle
    `Qualification` : analyse, conformité, criticité, suite proposée,

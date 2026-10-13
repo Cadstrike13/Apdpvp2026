@@ -151,6 +151,11 @@ CONTROLE_USER_AGENT = os.environ.get(
     "APDPVP-ControleEnLigne/1.0 (+https://apdpvp.ga ; controle en ligne)",
 )
 CONTROLE_RESPECTER_ROBOTS = _bool("CONTROLE_RESPECTER_ROBOTS", True)
+# Fenêtre Chromium visible pendant les scans cookies et tiers (poste de l'agent,
+# WSLg ou bureau). Laisser False en conteneur : il n'y a pas d'écran.
+CONTROLE_NAVIGATEUR_VISIBLE = _bool("CONTROLE_NAVIGATEUR_VISIBLE", False)
+# Pause entre deux actions du navigateur, en ms, pour suivre le parcours à l'œil.
+CONTROLE_NAVIGATEUR_RALENTI_MS = int(os.environ.get("CONTROLE_NAVIGATEUR_RALENTI_MS", "0"))
 
 
 LOGGING = {

@@ -12,7 +12,7 @@ from .models import (
     MissionControleEnLigne, MembreControleEnLigne, EnvironnementControle, PageIdentifiee,
     Qualification, ConstatDonnees, ConstatInformation, ConstatCookie, ConstatConsentement,
     ConstatFormulaire, ConstatCompte, ConstatSecurite, ConstatLegal, ConstatDroits,
-    ConstatTiers, ScenarioTest, PreuveCapture, SuiviCorrectif,
+    ConstatTiers, ScenarioTest, PreuveCapture, SuiviCorrectif, CheminListeBlanche,
 )
 
 
@@ -159,3 +159,31 @@ class PreuveAdmin(admin.ModelAdmin):
 
 admin.site.register(ScenarioTest)
 admin.site.register(SuiviCorrectif)
+
+
+@admin.register(CheminListeBlanche)
+class CheminListeBlancheAdmin(admin.ModelAdmin):
+    """Liste fermée du scan sécurité : éditable, plafonnée, chaque changement journalisé."""
+
+    list_display = ("chemin", "justification", "actif", "date_ajout")
+    list_filter = ("actif",)
+    list_editable = ("actif",)
+    search_fields = ("chemin", "justification")
+    readonly_fields = ("date_ajout",)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        journaliser(
+            "modification_liste_blanche" if change else "ajout_liste_blanche", obj,
+            acteur=getattr(request.user, "agent", None),
+            description=f"{obj.chemin} ({'actif' if obj.actif else 'inactif'}) — {obj.justification}",
+        )
+
+    def delete_model(self, request, obj):
+        journaliser("retrait_liste_blanche", obj, acteur=getattr(request.user, "agent", None),
+                    description=obj.chemin)
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        for obj in queryset:
+            self.delete_model(request, obj)

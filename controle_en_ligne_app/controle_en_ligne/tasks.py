@@ -32,7 +32,7 @@ from core.audit import journaliser
 
 from .models import (
     MissionControleEnLigne, PageIdentifiee, ConstatCookie, ConstatSecurite,
-    ConstatTiers, ScenarioTest, PreuveCapture,
+    ConstatTiers, ScenarioTest, PreuveCapture, CheminListeBlanche,
 )
 from .services.scanner_cartographie import scanner_cartographie
 from .services.scanner_securite import scanner_securite
@@ -197,7 +197,10 @@ def _scanner_cartographie_task(mission: MissionControleEnLigne):
 
 def _scanner_securite_task(mission: MissionControleEnLigne):
     horodatage = timezone.now()
-    donnees = scanner_securite(mission.url_principale) or {}
+    chemins = CheminListeBlanche.chemins_actifs()
+    donnees = scanner_securite(
+        mission.url_principale, user_agent=settings.CONTROLE_USER_AGENT, chemins=chemins,
+    ) or {}
     fait = _resumer_fait_securite(donnees)
 
     existant = ConstatSecurite.objects.filter(mission=mission).first()
@@ -217,7 +220,9 @@ def _scanner_securite_task(mission: MissionControleEnLigne):
 
     _enregistrer_preuve(
         mission, nom_scan="securite", scenario="", horodatage=horodatage,
-        contenu=donnees, outil="requests + ssl", resume=fait,
+        # La liste testée est archivée avec le résultat : elle peut changer
+        # entre deux contrôles, la preuve doit dire ce qui a été vérifié.
+        contenu={**donnees, "chemins_testes": list(chemins)}, outil="requests + ssl", resume=fait,
     )
     _marquer_test(mission, NUMEROS_TESTS["securite"], donnees)
 
@@ -244,7 +249,7 @@ def _scanner_cookies_task(mission: MissionControleEnLigne):
     Un traceur de type inconnu est répertorié en "non_classe" avec son type brut.
     """
     horodatage = timezone.now()
-    resultats = scanner_cookies(mission.url_principale) or {}
+    resultats = scanner_cookies(mission.url_principale, **_options_navigateur()) or {}
     types_connus = {cle for cle, _ in ConstatCookie.TYPES_TRACEUR} - {"non_classe"}
 
     mission.constats_cookies.filter(qualifications__isnull=True).delete()
@@ -316,7 +321,7 @@ def _resumer_fait_traceur(type_traceur: str, type_recu, nom: str, domaine: str, 
 
 def _scanner_tiers_task(mission: MissionControleEnLigne):
     horodatage = timezone.now()
-    tiers = scanner_tiers(mission.url_principale) or []
+    tiers = scanner_tiers(mission.url_principale, **_options_navigateur()) or []
     categories_valides = {cle for cle, _ in ConstatTiers.CATEGORIES}
 
     for entree in tiers:
@@ -343,6 +348,14 @@ def _scanner_tiers_task(mission: MissionControleEnLigne):
 # ---------------------------------------------------------------------------
 # Utilitaires
 # ---------------------------------------------------------------------------
+
+def _options_navigateur() -> dict:
+    """Fenêtre visible ou non et ralenti, réglés dans .env (CONTROLE_NAVIGATEUR_*)."""
+    return {
+        "headless": not settings.CONTROLE_NAVIGATEUR_VISIBLE,
+        "ralenti_ms": settings.CONTROLE_NAVIGATEUR_RALENTI_MS,
+    }
+
 
 def _filtrer_champs(modele, donnees: dict, nom_scan: str) -> dict:
     """Ne garde que les champs du modèle qu'un scan a le droit d'écrire."""

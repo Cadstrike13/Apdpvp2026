@@ -158,10 +158,14 @@ class OrchestrationTests(TestAvecMedia):
         self.assertFalse(test_acceptation.execute)
         self.assertTrue(JournalAction.objects.filter(action="echec_scan").exists())
 
-    def test_scanner_non_versionne(self):
-        """Les modules de remplacement lèvent NotImplementedError : la mission le signale."""
+    def test_tous_les_scanners_echouent(self):
+        """Sécurité, cookies et tiers échouent : chaque échec est consigné, la cartographie reste."""
         mission = creer_mission()
-        with mock.patch.object(tasks, "scanner_cartographie", return_value=CARTOGRAPHIE):
+        echec = mock.Mock(side_effect=OSError("réseau injoignable"))
+        with mock.patch.object(tasks, "scanner_cartographie", return_value=CARTOGRAPHIE), \
+             mock.patch.object(tasks, "scanner_securite", echec), \
+             mock.patch.object(tasks, "scanner_cookies", echec), \
+             mock.patch.object(tasks, "scanner_tiers", echec):
             tasks.lancer_scans_automatiques(mission.pk)
         mission.refresh_from_db()
         self.assertEqual({e["scan"] for e in mission.erreurs_scan}, {"securite", "cookies", "tiers"})
