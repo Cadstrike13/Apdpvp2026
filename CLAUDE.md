@@ -15,6 +15,7 @@ Internet
     ├── auth.apdpvp.local  ──► auth_app      (Django, port 8000)
     ├── rh.apdpvp.local    ──► rh_app        (Django, port 8001)  ◄── apdpvp-rh (React)
     ├── missions.apdpvp.local ─► missions_controle (Django)
+    ├── controle.apdpvp.local ─► controle_en_ligne_app (Django + Celery, port 8003)
     ├── depanage.apdpvp.local ─► depanage_demo    (Spring Boot, port 8083)
     └── questure.apdpvp.local ─► Questure         (Spring Boot, port 8082)
 ```
@@ -33,6 +34,7 @@ Chaque application possède son propre réseau isolé. Traefik est connecté à 
 | `depanage_net`    | Réseau isolé de depanage_demo             | depanage_demo                             |
 | `questure_net`    | Réseau isolé de Questure                  | questure                                  |
 | `missions_net`    | Réseau isolé de missions_controle         | missions_controle                         |
+| `controle_net`    | Réseau isolé de controle_en_ligne_app     | controle_en_ligne, controle_worker, controle_redis |
 
 > **Règle** : un service n'est jamais connecté au réseau isolé d'un autre service. La communication inter-services passe uniquement par les tokens JWT, pas par appel réseau direct.
 
@@ -53,6 +55,7 @@ Un seul fichier `traefik.yml` (ou `docker-compose.traefik.yml`) partagé par tou
 | `depanage.apdpvp.local`    | depanage_demo       | 8083         |
 | `questure.apdpvp.local`    | questure            | 8082         |
 | `missions.apdpvp.local`    | missions_controle   | 8002         |
+| `controle.apdpvp.local`    | controle_en_ligne   | 8003         |
 
 ### Labels Traefik type (à appliquer sur chaque service)
 
@@ -104,6 +107,20 @@ labels:
 | Volume                  | Chemin conteneur           | Contenu                        |
 |-------------------------|----------------------------|--------------------------------|
 | `missions_db`           | `/app/db/missions.sqlite3` | Base de données SQLite         |
+
+### controle_en_ligne_app (Django + Celery — contrôle en ligne)
+
+| Volume                  | Chemin conteneur            | Contenu                                        |
+|-------------------------|-----------------------------|------------------------------------------------|
+| `controle_db`           | `/app/db/controle.sqlite3`  | Base SQLite (partagée web + worker)            |
+| `controle_media`        | `/app/media/`               | Preuves des contrôles (JSON horodatés, SHA-256)|
+| `controle_static`       | `/app/staticfiles/`         | Fichiers statiques collectés                   |
+| `controle_redis`        | `/data`                     | File de tâches Celery                          |
+
+Trois conteneurs : `controle_en_ligne` (web), `controle_worker` (scans, Playwright),
+`controle_redis` (broker). Le worker doit joindre Internet pour contrôler les sites :
+`controle_net` n'est pas déclaré `internal: true`. Détails métier :
+`controle_en_ligne_app/controle_en_ligne/CLAUDE.md`.
 
 ### apdpvp-rh (React / Vite)
 
@@ -158,9 +175,13 @@ apdpvp_2026/
 │   ├── Dockerfile
 │   └── docker-compose.yml       # questure + volumes + réseaux questure_net, traefik_net
 │
-└── missions_controle/
+├── missions_controle/
+│   ├── Dockerfile
+│   └── docker-compose.yml       # missions + volumes + réseaux missions_net, traefik_net
+│
+└── controle_en_ligne_app/
     ├── Dockerfile
-    └── docker-compose.yml       # missions + volumes + réseaux missions_net, traefik_net
+    └── docker-compose.yml       # web + worker Celery + Redis, réseaux controle_net, traefik_net
 ```
 
 ---
@@ -189,6 +210,7 @@ cd apdpvp-rh        && docker compose up -d
 cd depanage_demo    && docker compose up -d
 cd Questure         && docker compose up -d
 cd missions_controle && docker compose up -d
+cd controle_en_ligne_app && cp .env.example .env && docker compose up -d --build
 ```
 
 ---

@@ -1,0 +1,76 @@
+# Service controle_en_ligne_app — contrôle en ligne APDPVP.
+# Démarrer Traefik d'abord (il crée traefik_net), puis : docker compose up -d
+
+services:
+  controle_en_ligne:
+    build: .
+    image: apdpvp/controle_en_ligne:latest
+    container_name: controle_en_ligne
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ROLE: web
+      DATABASE_PATH: /app/db/controle.sqlite3
+      MEDIA_ROOT: /app/media
+      STATIC_ROOT: /app/staticfiles
+      CELERY_BROKER_URL: redis://controle_redis:6379/0
+    volumes:
+      - controle_db:/app/db
+      - controle_media:/app/media
+      - controle_static:/app/staticfiles
+    networks:
+      - controle_net
+      - traefik_net
+    depends_on:
+      - controle_redis
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.controle.rule=Host(`controle.apdpvp.local`)"
+      - "traefik.http.routers.controle.entrypoints=web"
+      - "traefik.http.services.controle.loadbalancer.server.port=8003"
+      - "traefik.docker.network=traefik_net"
+
+  # Exécute les scans. Une seule tâche à la fois : la base SQLite est partagée
+  # avec le conteneur web et un contrôle doit rester reproductible.
+  controle_worker:
+    image: apdpvp/controle_en_ligne:latest
+    container_name: controle_worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ROLE: worker
+      DATABASE_PATH: /app/db/controle.sqlite3
+      MEDIA_ROOT: /app/media
+      CELERY_BROKER_URL: redis://controle_redis:6379/0
+    command: ["celery", "-A", "controle_conf", "worker", "--loglevel", "INFO", "--concurrency", "1"]
+    volumes:
+      - controle_db:/app/db
+      - controle_media:/app/media
+    # Le worker doit joindre les sites contrôlés : controle_net n'est donc pas
+    # déclaré "internal: true" (il reste isolé des réseaux des autres services).
+    networks:
+      - controle_net
+    depends_on:
+      - controle_en_ligne
+      - controle_redis
+
+  controle_redis:
+    image: redis:7-alpine
+    container_name: controle_redis
+    restart: unless-stopped
+    volumes:
+      - controle_redis:/data
+    networks:
+      - controle_net
+
+volumes:
+  controle_db:
+  controle_media:
+  controle_static:
+  controle_redis:
+
+networks:
+  controle_net:
+    name: controle_net
+  traefik_net:
+    external: true
